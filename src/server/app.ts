@@ -227,10 +227,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 /**
- * security configuration
+ * Initialize routes
  */
-
-app.use(compression());
+app.use(validateDataWithZod);
 
 /**
  * handle unhandled rejections
