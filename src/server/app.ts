@@ -16,6 +16,7 @@ import mongoSanitize from 'express-mongo-sanitize';
 import express, { Application, NextFunction, Request, Response } from 'express';
 
 import { fifteenMinutes, logger } from '@/common';
+import { ENVIRONMENT } from '@/config';
 
 dotenv.config();
 
@@ -71,7 +72,41 @@ app.use(
 /**
  * middleware to allow cors
  */
-const allowedOrigins = [ENVIRONMENT.FRONTEND_URL];
+const allowedOrigins = [
+      ENVIRONMENT.FRONTEND_URL,
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:3000'
+].filter(Boolean);
+
+app.use(
+      cors({
+            origin: (origin, callback) => {
+                  if (!origin) return callback(null, true);
+
+                  if (allowedOrigins.indexOf(origin) !== -1) {
+                        callback(null, true);
+                  } else {
+                        callback(new Error('Not allowed by CORS'));
+                  }
+            },
+            credentials: true,
+            methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+            allowedHeaders: [
+                  'Content-Type',
+                  'Authorization',
+                  'X-Requested-With',
+                  'x-xsrf-token',
+                  'x-csrf-token',
+                  'Accept',
+                  'Origin'
+            ],
+            exposedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+            preflightContinue: false,
+            optionsSuccessStatus: 204
+      })
+);
 
 /**
  * security configuration
@@ -92,5 +127,3 @@ process.on('unhandledRejection', (reason: any) => {
       console.error('Unhandled Rejection:', reason);
       process.exit(1);
 });
-
-const app: Application = express();
