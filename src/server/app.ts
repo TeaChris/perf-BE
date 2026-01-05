@@ -109,11 +109,53 @@ app.use(
 );
 
 /**
+ * use Helmet middleware for security headers
+ */
+
+app.use(
+      helmet({
+            contentSecurityPolicy: false
+      })
+);
+
+app.use(
+      helmetCsp({
+            directives: {
+                  baseUri: ['"self"'],
+                  objectSrc: ['"none"'],
+                  defaultSrc: ['"self"'],
+                  frameAncestors: ['"none"'],
+                  upgradeInsecureRequests: [],
+                  imgSrc: ['"self"', 'data', 'https:'],
+                  styleSrc: ['"self"', '"unsafe-inline"'],
+                  scriptSrc: ['"self"', '"unsafe-inline"'],
+                  fontSrc: ['"self"', 'https://fonts.gstatic.com'],
+                  connectSrc: ['"self"', 'https://api.mapbox.com'],
+                  frameSrc: ['"self"'],
+                  mediaSrc: ['"self"'],
+                  childSrc: ['"self"'],
+                  reportUri: '/csp-report'
+            }
+      })
+);
+
+const helmetConfig: HelmetOptions = {
+      frameguard: { action: 'deny' },
+      xssFilter: true,
+      referrerPolicy: { policy: 'same-origin' },
+      hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
+};
+
+app.use(helmet(helmetConfig));
+
+/**
+ * secure cookies and other helmet-related configurations
+ */
+
+/**
  * security configuration
  */
 
-app.use(helmet());
-app.use(helmetCsp());
 app.use(xss());
 app.use(mongoSanitize());
 app.use(hpp());
