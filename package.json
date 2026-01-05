@@ -43,6 +43,7 @@
         "ts-custom-error": "^3.3.1",
         "tsconfig-paths": "^4.2.0",
         "uuid": "^13.0.0",
+        "winston": "^3.19.0",
         "xss-clean": "^0.1.4",
         "zod": "^4.3.5"
     }
