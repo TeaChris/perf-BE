@@ -17,7 +17,7 @@ import express, { Application, NextFunction, Request, Response } from 'express';
 
 import { fifteenMinutes, logger, stream } from '@/common';
 import { ENVIRONMENT } from '@/config';
-import { timeoutMiddleware } from '@/middleware';
+import { timeoutMiddleware, validateDataWithZod } from '@/middleware';
 
 dotenv.config();
 
