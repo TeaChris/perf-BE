@@ -15,9 +15,10 @@ import helmet, { HelmetOptions } from 'helmet';
 import mongoSanitize from 'express-mongo-sanitize';
 import express, { Application, NextFunction, Request, Response } from 'express';
 
-import { fifteenMinutes, logger, stream } from '@/common';
 import { ENVIRONMENT } from '@/config';
-import { timeoutMiddleware, validateDataWithZod } from '@/middleware';
+import { errorHandler } from '@/controller';
+import { fifteenMinutes, logger, stream } from '@/common';
+import { csrfProtection, setCsrfToken, timeoutMiddleware, validateDataWithZod } from '@/middleware';
 
 dotenv.config();
 
@@ -230,12 +231,32 @@ app.use((req: Request, res: Response, next: NextFunction) => {
  * Initialize routes
  */
 app.use(validateDataWithZod);
+app.use(setCsrfToken);
+app.use(csrfProtection);
 
-/**
- * handle unhandled rejections
- */
-
-process.on('unhandledRejection', (reason: any) => {
-      console.error('Unhandled Rejection:', reason);
-      process.exit(1);
+app.use('/api/v1/alive', (req: Request, res: Response) => {
+      res.status(200).json({
+            status: 'success',
+            message: 'Server is alive',
+            data: {
+                  requestTime: req.requestTime
+            }
+      });
 });
+
+// add other routes
+
+app.use(errorHandler);
+
+app.all('/*', async (req: Request, res: Response) => {
+      logger.error('route not found' + new Date(Date.now()) + ' ' + req.originalUrl);
+      res.status(404).jsn({
+            status: 'error',
+            message: `OOPs!! No handler defined for ${req.method.toUpperCase()} ${req.url}`,
+            data: {
+                  requestTime: req.requestTime
+            }
+      });
+});
+
+export default app;
