@@ -1,23 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
-import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import { catchAsync } from './catch.async';
 import AppError from '@/common/utils/app.error';
-import { ENVIRONMENT } from '@/config';
+import { ALLOWED_ORIGINS, ENVIRONMENT } from '@/config';
 import { twentyFourHours } from '@/common';
 
 const CSRF_PROTECTED_METHOD = ['POST', 'PUT', 'DELETE', 'PATCH'];
 
-const ALLOWED_ORIGIN = [
-      ENVIRONMENT.FRONTEND_URL,
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:3000'
-
-      //   add protection domain here
-];
-
-const csrfProtection = catchAsync(async (req: Request, res: Request, next: NextFunction) => {
+const csrfProtection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
       if (!CSRF_PROTECTED_METHOD.includes(req.method)) {
             return next();
       }
@@ -32,9 +22,9 @@ const csrfProtection = catchAsync(async (req: Request, res: Request, next: NextF
       let originValid = false;
 
       if (origin) {
-            originValid = ALLOWED_ORIGIN.some(allowedOrigin => origin.startsWith(allowedOrigin));
+            originValid = ALLOWED_ORIGINS.some(allowedOrigin => origin.startsWith(allowedOrigin));
       } else if (referer) {
-            originValid = ALLOWED_ORIGIN.some(allowedOrigin => referer.startsWith(allowedOrigin));
+            originValid = ALLOWED_ORIGINS.some(allowedOrigin => referer.startsWith(allowedOrigin));
       }
 
       if (!originValid) {
@@ -42,7 +32,7 @@ const csrfProtection = catchAsync(async (req: Request, res: Request, next: NextF
       }
 
       const csrfHeader = req.get('x-csrf-token');
-      const csrfCookie = req.cookie?.csrfToken;
+      const csrfCookie = req.cookies?.csrfToken;
 
       if (!csrfHeader || !csrfCookie || csrfHeader !== csrfCookie) {
             return next(new AppError('CSRF token not found', 403));
@@ -53,7 +43,7 @@ const csrfProtection = catchAsync(async (req: Request, res: Request, next: NextF
 
 const setCsrfToken = (req: Request, res: Response, next: NextFunction) => {
       if (!req.cookies.csrfToken) {
-            const csrfToken = uuidv4();
+            const csrfToken = crypto.randomBytes(32).toString('hex');
 
             res.cookie('csrfToken', csrfToken, {
                   httpOnly: true,
