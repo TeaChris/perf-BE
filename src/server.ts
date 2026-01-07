@@ -11,7 +11,7 @@ const appName = ENVIRONMENT.APP.NAME;
 const server = http.createServer(app);
 
 const appServer = server.listen(port, async () => {
-      //   await db();
+      await db();
       //TODO:   initialize redis queue worker
 
       logger.info(`🚀 ${appName} is listening on port ${port}`);
