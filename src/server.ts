@@ -31,7 +31,7 @@ process.on('unhandledRejection', async (error: Error) => {
       //TODO:   close redis connection
       //TODO: stop queue workers
 
-      await appServer.close(() => {
+      appServer.close(() => {
             logger.info('HTTP server closed');
             process.exit(1);
       });
