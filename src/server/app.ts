@@ -15,8 +15,8 @@ import helmet, { HelmetOptions } from 'helmet';
 import mongoSanitize from 'express-mongo-sanitize';
 import express, { Application, NextFunction, Request, Response } from 'express';
 
-import { ALLOWED_ORIGINS, ENVIRONMENT } from '@/config';
 import { errorHandler } from '@/controller';
+import { ALLOWED_ORIGINS, ENVIRONMENT } from '@/config';
 import { fifteenMinutes, logger, stream } from '@/common';
 import { csrfProtection, setCsrfToken, timeoutMiddleware, validateDataWithZod } from '@/middleware';
 
@@ -226,7 +226,8 @@ app.use('/api/v1/alive', (req: Request, res: Response) => {
 
 // add other routes
 
-app.all('/*', async (req: Request, res: Response) => {
+// 404 handler - must be after all other routes
+app.use((req: Request, res: Response) => {
       logger.error('route not found' + new Date(Date.now()) + ' ' + req.originalUrl);
       res.status(404).json({
             status: 'error',
