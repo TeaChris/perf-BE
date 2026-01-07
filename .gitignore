@@ -32,7 +32,7 @@ package-lock.json
 *.sw?
 
 # Dependency files
-*.d.ts
+# *.d.ts
 *.map
 
 # Build output
