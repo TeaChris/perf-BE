@@ -3,7 +3,7 @@ import { ENVIRONMENT } from '@/config';
 import AppError from '@/common/utils/app.error';
 
 import { CastError, Error as MongooseError } from 'mongoose';
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 
 const handleMongooseCastError = (err: CastError) => {
       const message = `Invalid ${err.path} value ${err.value}`;
@@ -20,7 +20,7 @@ const handleMongooseDuplicateFieldsError = (err, next: NextFunction) => {
       logger.error('Unhandled error:', err);
 
       if (err.code === 11000) {
-            const field = Object.keys(err.keyValue)[0]
+            const field = Object.keys(err.keyValue || {})[0]
                   .replace(/([a-z])([A-Z])/g, '$1 $2')
                   .split(/(?=[A-Z])/)
                   .map((word, index) =>
@@ -74,7 +74,7 @@ const sendErrorProd = (err: AppError, res: Response) => {
       }
 };
 
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
       err.statusCode = err.statusCode || 500;
       err.status = err.status || 'Error';
 
@@ -90,7 +90,7 @@ const errorHandler = (err, req, res, next) => {
             if (err.name === 'TokenExpiredError') error = handleJWTExpiredError();
             if ((err as MongooseError) && err.code === 11000) error = handleMongooseDuplicateFieldsError(err, next);
 
-            sendErrorProd(err, res);
+            sendErrorProd(error, res);
       }
 };
 
