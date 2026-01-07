@@ -1,6 +1,3 @@
-import * as dotenv from 'dotenv';
-dotenv.config();
-
 if (process.env.NODE_ENV === 'production') require('module-alias/register');
 
 import hpp from 'hpp';
@@ -19,8 +16,6 @@ import { errorHandler } from '@/controller';
 import { ALLOWED_ORIGINS, ENVIRONMENT } from '@/config';
 import { fifteenMinutes, logger, stream } from '@/common';
 import { csrfProtection, setCsrfToken, timeoutMiddleware, validateDataWithZod } from '@/middleware';
-
-dotenv.config();
 
 /**
  * handle uncaught exceptions
