@@ -12,7 +12,8 @@ const validateEnvironment = () => {
             'REFRESH_JWT_EXPIRES_IN',
             'ACCESS_JWT_EXPIRES_IN',
             'FRONTEND_URL',
-            'API_KEY'
+            'API_KEY',
+            'FROM_EMAIL'
       ];
 
       const missingVars = requiredVars.filter(varName => !process.env[varName]);
