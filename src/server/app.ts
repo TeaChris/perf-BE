@@ -15,7 +15,7 @@ import helmet, { HelmetOptions } from 'helmet';
 import mongoSanitize from 'express-mongo-sanitize';
 import express, { Application, NextFunction, Request, Response } from 'express';
 
-import { ENVIRONMENT } from '@/config';
+import { ALLOWED_ORIGINS, ENVIRONMENT } from '@/config';
 import { errorHandler } from '@/controller';
 import { fifteenMinutes, logger, stream } from '@/common';
 import { csrfProtection, setCsrfToken, timeoutMiddleware, validateDataWithZod } from '@/middleware';
@@ -30,7 +30,6 @@ process.on('uncaughtException', async (error: Error) => {
       console.error('UNCAUGHT EXCEPTION!! 💥 Server Shutting down...', error);
       console.log(error.name, error.message);
       logger.error('UNCAUGHT EXCEPTION!! 💥 Server Shutting down...', error);
-      process.exit(1);
 
       // TODO: close redis connection
       //   TODO: stop queue workers
@@ -48,7 +47,7 @@ const app: Application = express();
  * express configuration
  */
 
-app.use('trust proxy', ['loopback', 'linklocal', 'uniquelocal']); // trust proxy for ratelimit
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']); // trust proxy for ratelimit
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(express.json({ limit: '10kb' }));
 app.use(cookieParser());
@@ -74,20 +73,13 @@ app.use(
 /**
  * middleware to allow cors
  */
-const allowedOrigins = [
-      ENVIRONMENT.FRONTEND_URL,
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:3000'
-].filter(Boolean);
 
 app.use(
       cors({
             origin: (origin, callback) => {
                   if (!origin) return callback(null, true);
 
-                  if (allowedOrigins.indexOf(origin) !== -1) {
+                  if (ALLOWED_ORIGINS.indexOf(origin) !== -1) {
                         callback(null, true);
                   } else {
                         callback(new Error('Not allowed by CORS'));
@@ -215,24 +207,12 @@ app.use((req: Request, res: Response, next: NextFunction) => {
  */
 app.use(timeoutMiddleware);
 
-// add request timeout protection
-app.use((req: Request, res: Response, next: NextFunction) => {
-      // set timeout for all requests
-      const timeout = setTimeout(() => {
-            next(new Error('Request timed out'));
-      }, 60000);
-
-      req.on('close', () => clearTimeout(timeout));
-
-      next();
-});
-
 /**
  * Initialize routes
  */
-app.use(validateDataWithZod);
 app.use(setCsrfToken);
 app.use(csrfProtection);
+app.use(validateDataWithZod);
 
 app.use('/api/v1/alive', (req: Request, res: Response) => {
       res.status(200).json({
@@ -246,11 +226,9 @@ app.use('/api/v1/alive', (req: Request, res: Response) => {
 
 // add other routes
 
-app.use(errorHandler);
-
 app.all('/*', async (req: Request, res: Response) => {
       logger.error('route not found' + new Date(Date.now()) + ' ' + req.originalUrl);
-      res.status(404).jsn({
+      res.status(404).json({
             status: 'error',
             message: `OOPs!! No handler defined for ${req.method.toUpperCase()} ${req.url}`,
             data: {
@@ -258,5 +236,7 @@ app.all('/*', async (req: Request, res: Response) => {
             }
       });
 });
+
+app.use(errorHandler);
 
 export default app;
