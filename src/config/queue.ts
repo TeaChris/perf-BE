@@ -1,4 +1,4 @@
-import { Queue, Worker, QueueEvents, Job } from 'bullmq';
+import { Queue, Worker, QueueEvents, Job, tryCatch } from 'bullmq';
 
 import { EmailJobData, logger } from '@/common';
 import { createRedisClient } from './redis';
@@ -127,3 +127,62 @@ export const addJob = async (
  * @param concurrency - The number of jobs to process concurrently (default: 1)
  * @returns The worker instance or null if Redis is not configured
  */
+
+export const createWorker = (
+        queueName: string,
+        processor: (job: Job) => Promise<any>,
+        concurrency?: 1
+): Worker | null => {
+        // check if worker already exists
+        if (workers.has(queueName)) {
+                logger.warn(`Worker already exists for queue ${queueName}`);
+                return workers.get(queueName) || null;
+        }
+
+        // get redis connection options
+        const connectionOptions = createRedisClient();
+        if (!connectionOptions) {
+                logger.warn(`Queue disabled: cannot create worker for queue ${queueName}`);
+                return null;
+        }
+
+        try {
+                // create worker
+                const worker = new Worker(
+                        queueName,
+                        async job => {
+                                logger.info(`Processing job ${job.id} from queue ${queueName}`);
+                                try {
+                                        return await processor(job);
+                                } catch (error) {
+                                        logger.error(`Error processing job ${job.id} from queue ${queueName}:`, error);
+                                        throw error; // rethrow error to let Bull handle it
+                                }
+                        },
+                        { connection: connectionOptions, concurrency, autorun: true }
+                );
+
+                // setup event listeners
+                worker.on('completed', job => {
+                        logger.info(`Job ${job?.id} completed in queue ${queueName}:`);
+                });
+
+                worker.on('failed', job => {
+                        logger.error(`Job ${job?.id} failed in queue ${queueName}:`, job?.failedReason);
+                });
+
+                worker.on('error', job => {
+                        logger.error(`Worker error in queue ${queueName}:`, job?.cause);
+                });
+
+                // store the worker
+                workers.set(queueName, worker);
+
+                logger.info(`Worker created for queue ${queueName} with concurrency ${concurrency}`);
+
+                return worker;
+        } catch (error) {
+                logger.error(`Error creating worker for queue ${queueName}:`, error);
+                return null;
+        }
+};
