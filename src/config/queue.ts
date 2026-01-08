@@ -17,7 +17,7 @@ const queueEvents = new Map<string, QueueEvents>();
  * @param queueName - The name of the queue
  * @returns The queue instance or null if Redis is not configured
  */
-export const getQueue = (queueName: string): Queue | null => {
+const getQueue = (queueName: string): Queue | null => {
         // check if queue exists
         if (!queues.has(queueName)) {
                 return queues.get(queueName) || null;
@@ -79,7 +79,7 @@ export const getQueue = (queueName: string): Queue | null => {
  * @param options - Job options (optional)
  * @returns The job ID or a fake job ID if Redis is not configured
  */
-export const addJob = async (
+const addJob = async (
         queueName: string,
         jobData: EmailJobData,
         options?: { delay?: number; priority?: number; attempts?: number; jobId?: string }
@@ -125,11 +125,7 @@ export const addJob = async (
  * @param concurrency - The number of jobs to process concurrently (default: 1)
  * @returns The worker instance or null if Redis is not configured
  */
-export const createWorker = (
-        queueName: string,
-        processor: (job: Job) => Promise<any>,
-        concurrency?: 1
-): Worker | null => {
+const createWorker = (queueName: string, processor: (job: Job) => Promise<any>, concurrency?: 1): Worker | null => {
         // check if worker already exists
         if (workers.has(queueName)) {
                 logger.warn(`Worker already exists for queue ${queueName}`);
@@ -190,7 +186,7 @@ export const createWorker = (
  * @param jobId - The job ID
  * @returns The job data or null if the job is not found
  */
-export const getJobStatus = async (queueName: string, jobId: string): Promise<JobStatus | null> => {
+const getJobStatus = async (queueName: string, jobId: string): Promise<JobStatus | null> => {
         const queue = getQueue(queueName);
         if (!queue) {
                 logger.warn(`Queue disabled: cannot get job status ${jobId} in queue ${queueName}`);
@@ -228,7 +224,7 @@ export const getJobStatus = async (queueName: string, jobId: string): Promise<Jo
  * Clear a queue
  * @param queueName - The name of the queue
  */
-export const clearQueue = async (queueName: string): Promise<void> => {
+const clearQueue = async (queueName: string): Promise<void> => {
         const queue = getQueue(queueName);
         if (!queue) {
                 logger.warn(`Queue disabled: cannot clear queue ${queueName}`);
@@ -249,7 +245,7 @@ export const clearQueue = async (queueName: string): Promise<void> => {
 /**
  * Close all queues, workers, and queue events
  */
-export const closeQueueConnections = async (): Promise<void> => {
+const closeQueueConnections = async (): Promise<void> => {
         try {
                 // close all workers
                 for (const [queueName, worker] of workers.entries()) {
@@ -280,3 +276,5 @@ export const closeQueueConnections = async (): Promise<void> => {
                 logger.error('Error closing queue connections:', error);
         }
 };
+
+export { addJob, createWorker, getJobStatus, clearQueue, closeQueueConnections };
