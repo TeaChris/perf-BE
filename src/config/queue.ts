@@ -245,3 +245,38 @@ export const clearQueue = async (queueName: string): Promise<void> => {
                 logger.error(`Error clearing queue ${queueName}:`, error);
         }
 };
+
+/**
+ * Close all queues, workers, and queue events
+ */
+export const closeQueueConnections = async (): Promise<void> => {
+        try {
+                // close all workers
+                for (const [queueName, worker] of workers.entries()) {
+                        await worker.close();
+                        logger.info(`Worker for queue ${queueName} closed`);
+                }
+
+                workers.clear();
+
+                // close all queue events
+                for (const [queueName, events] of queueEvents.entries()) {
+                        await events.close();
+                        logger.info(`Queue events for queue ${queueName} closed`);
+                }
+
+                queueEvents.clear();
+
+                // close all queues
+                for (const [queueName, queue] of queues.entries()) {
+                        await queue.close();
+                        logger.info(`Queue ${queueName} closed`);
+                }
+
+                queues.clear();
+
+                logger.info('All queue connections closed');
+        } catch (error) {
+                logger.error('Error closing queue connections:', error);
+        }
+};
