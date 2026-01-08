@@ -1,6 +1,6 @@
-import { Queue, Worker, QueueEvents, Job, tryCatch } from 'bullmq';
+import { Queue, Worker, QueueEvents, Job } from 'bullmq';
 
-import { EmailJobData, logger } from '@/common';
+import { EmailJobData, JobStatus, logger } from '@/common';
 import { createRedisClient } from './redis';
 
 // Map to store queues by name
@@ -183,6 +183,46 @@ export const createWorker = (
                 return worker;
         } catch (error) {
                 logger.error(`Error creating worker for queue ${queueName}:`, error);
+                return null;
+        }
+};
+
+/**
+ * Get job status
+ * @param queueName - The name of the queue
+ * @param jobId - The job ID
+ * @returns The job data or null if the job is not found
+ */
+export const getJobStatus = async (queueName: string, jobId: string): Promise<JobStatus | null> => {
+        const queue = getQueue(queueName);
+        if (!queue) {
+                logger.warn(`Queue disabled: cannot get job status ${jobId} in queue ${queueName}`);
+                return null;
+        }
+
+        try {
+                const job = await queue.getJob(jobId);
+                if (!job) {
+                        logger.warn(`Job ${jobId} not found in queue ${queueName}`);
+                        return null;
+                }
+
+                // get job state
+                const state = await job.getState();
+
+                return {
+                        id: job.id,
+                        data: job.data,
+                        status: state,
+                        timestamp: job.timestamp,
+                        processedOn: job.processedOn,
+                        finishedOn: job.finishedOn,
+                        attemptsMade: job.attemptsMade,
+                        returnvalue: job.returnvalue,
+                        failedReason: job.failedReason
+                };
+        } catch (error) {
+                logger.error(`Error getting job status for ${jobId} in queue ${queueName}:`, error);
                 return null;
         }
 };
