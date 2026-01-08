@@ -17,7 +17,6 @@ const queueEvents = new Map<string, QueueEvents>();
  * @param queueName - The name of the queue
  * @returns The queue instance or null if Redis is not configured
  */
-
 export const getQueue = (queueName: string): Queue | null => {
         // check if queue exists
         if (!queues.has(queueName)) {
@@ -80,7 +79,6 @@ export const getQueue = (queueName: string): Queue | null => {
  * @param options - Job options (optional)
  * @returns The job ID or a fake job ID if Redis is not configured
  */
-
 export const addJob = async (
         queueName: string,
         jobData: EmailJobData,
@@ -127,7 +125,6 @@ export const addJob = async (
  * @param concurrency - The number of jobs to process concurrently (default: 1)
  * @returns The worker instance or null if Redis is not configured
  */
-
 export const createWorker = (
         queueName: string,
         processor: (job: Job) => Promise<any>,
@@ -224,5 +221,27 @@ export const getJobStatus = async (queueName: string, jobId: string): Promise<Jo
         } catch (error) {
                 logger.error(`Error getting job status for ${jobId} in queue ${queueName}:`, error);
                 return null;
+        }
+};
+
+/**
+ * Clear a queue
+ * @param queueName - The name of the queue
+ */
+export const clearQueue = async (queueName: string): Promise<void> => {
+        const queue = getQueue(queueName);
+        if (!queue) {
+                logger.warn(`Queue disabled: cannot clear queue ${queueName}`);
+                return;
+        }
+
+        try {
+                // empty the queue
+                await queue.obliterate({
+                        force: true
+                });
+                logger.info(`Queue ${queueName} cleared`);
+        } catch (error) {
+                logger.error(`Error clearing queue ${queueName}:`, error);
         }
 };
