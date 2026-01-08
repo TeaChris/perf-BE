@@ -13,7 +13,7 @@ import mongoSanitize from 'express-mongo-sanitize';
 import express, { Application, NextFunction, Request, Response } from 'express';
 
 import { errorHandler } from '@/controller';
-import { ALLOWED_ORIGINS, ENVIRONMENT } from '@/config';
+import { ALLOWED_ORIGINS, ENVIRONMENT, stopRedisConnections } from '@/config';
 import { fifteenMinutes, logger, stream } from '@/common';
 import { csrfProtection, setCsrfToken, timeoutMiddleware, validateDataWithZod } from '@/middleware';
 
@@ -22,14 +22,14 @@ import { csrfProtection, setCsrfToken, timeoutMiddleware, validateDataWithZod } 
  */
 
 process.on('uncaughtException', async (error: Error) => {
-      console.error('UNCAUGHT EXCEPTION!! 💥 Server Shutting down...', error);
-      console.log(error.name, error.message);
-      logger.error('UNCAUGHT EXCEPTION!! 💥 Server Shutting down...', error);
+        console.error('UNCAUGHT EXCEPTION!! 💥 Server Shutting down...', error);
+        console.log(error.name, error.message);
+        logger.error('UNCAUGHT EXCEPTION!! 💥 Server Shutting down...', error);
 
-      // TODO: close redis connection
-      //   TODO: stop queue workers
-
-      process.exit(1);
+        await stopRedisConnections();
+        //   TODO: stop queue workers
+        //   await stopQueueWorkers();
+        process.exit(1);
 });
 
 /**
@@ -58,11 +58,11 @@ app.use(compression());
  */
 
 app.use(
-      rateLimit({
-            windowMs: fifteenMinutes,
-            max: 100,
-            message: 'Too many requests from this IP, please try again later!'
-      })
+        rateLimit({
+                windowMs: fifteenMinutes,
+                max: 100,
+                message: 'Too many requests from this IP, please try again later!'
+        })
 );
 
 /**
@@ -70,31 +70,31 @@ app.use(
  */
 
 app.use(
-      cors({
-            origin: (origin, callback) => {
-                  if (!origin) return callback(null, true);
+        cors({
+                origin: (origin, callback) => {
+                        if (!origin) return callback(null, true);
 
-                  if (ALLOWED_ORIGINS.indexOf(origin) !== -1) {
-                        callback(null, true);
-                  } else {
-                        callback(new Error('Not allowed by CORS'));
-                  }
-            },
-            credentials: true,
-            methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-            allowedHeaders: [
-                  'Content-Type',
-                  'Authorization',
-                  'X-Requested-With',
-                  'x-xsrf-token',
-                  'x-csrf-token',
-                  'Accept',
-                  'Origin'
-            ],
-            exposedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-            preflightContinue: false,
-            optionsSuccessStatus: 204
-      })
+                        if (ALLOWED_ORIGINS.indexOf(origin) !== -1) {
+                                callback(null, true);
+                        } else {
+                                callback(new Error('Not allowed by CORS'));
+                        }
+                },
+                credentials: true,
+                methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+                allowedHeaders: [
+                        'Content-Type',
+                        'Authorization',
+                        'X-Requested-With',
+                        'x-xsrf-token',
+                        'x-csrf-token',
+                        'Accept',
+                        'Origin'
+                ],
+                exposedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+                preflightContinue: false,
+                optionsSuccessStatus: 204
+        })
 );
 
 /**
@@ -102,37 +102,37 @@ app.use(
  */
 
 app.use(
-      helmet({
-            contentSecurityPolicy: false
-      })
+        helmet({
+                contentSecurityPolicy: false
+        })
 );
 
 app.use(
-      helmetCsp({
-            directives: {
-                  baseUri: ['"self"'],
-                  objectSrc: ['"none"'],
-                  defaultSrc: ['"self"'],
-                  frameAncestors: ['"none"'],
-                  upgradeInsecureRequests: [],
-                  imgSrc: ['"self"', 'data', 'https:'],
-                  styleSrc: ['"self"', '"unsafe-inline"'],
-                  scriptSrc: ['"self"', '"unsafe-inline"'],
-                  fontSrc: ['"self"', 'https://fonts.gstatic.com'],
-                  connectSrc: ['"self"', 'https://api.mapbox.com'],
-                  frameSrc: ['"self"'],
-                  mediaSrc: ['"self"'],
-                  childSrc: ['"self"'],
-                  reportUri: '/csp-report'
-            }
-      })
+        helmetCsp({
+                directives: {
+                        baseUri: ['"self"'],
+                        objectSrc: ['"none"'],
+                        defaultSrc: ['"self"'],
+                        frameAncestors: ['"none"'],
+                        upgradeInsecureRequests: [],
+                        imgSrc: ['"self"', 'data', 'https:'],
+                        styleSrc: ['"self"', '"unsafe-inline"'],
+                        scriptSrc: ['"self"', '"unsafe-inline"'],
+                        fontSrc: ['"self"', 'https://fonts.gstatic.com'],
+                        connectSrc: ['"self"', 'https://api.mapbox.com'],
+                        frameSrc: ['"self"'],
+                        mediaSrc: ['"self"'],
+                        childSrc: ['"self"'],
+                        reportUri: '/csp-report'
+                }
+        })
 );
 
 const helmetConfig: HelmetOptions = {
-      frameguard: { action: 'deny' },
-      xssFilter: true,
-      referrerPolicy: { policy: 'same-origin' },
-      hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
+        frameguard: { action: 'deny' },
+        xssFilter: true,
+        referrerPolicy: { policy: 'same-origin' },
+        hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
 };
 
 app.use(helmet(helmetConfig));
@@ -153,26 +153,26 @@ app.use(helmet.permittedCrossDomainPolicies());
  * additional security headers
  */
 app.use((req, res, next) => {
-      // prevent browser from caching sensitive info.
-      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate', 'private');
-      res.set('Pragma', 'no-cache');
-      res.set('Expires', '0');
+        // prevent browser from caching sensitive info.
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate', 'private');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
 
-      res.set('X-Frame-Options', 'DENY');
-      res.set('X-Content-Type-Options', 'nosniff');
-      res.set('X-XSS-Protection', '1; mode=block');
-      res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-      res.set('Permissions-Policy', 'geolocation=(), microphone=()');
-      res.set('Strict-Transport-Security', 'max-age=31536000 ; includeSubDomains ; preload');
-      res.set(
-            'Content-Security-Policy',
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; media-src 'self'; child-src 'self';"
-      );
+        res.set('X-Frame-Options', 'DENY');
+        res.set('X-Content-Type-Options', 'nosniff');
+        res.set('X-XSS-Protection', '1; mode=block');
+        res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+        res.set('Permissions-Policy', 'geolocation=(), microphone=()');
+        res.set('Strict-Transport-Security', 'max-age=31536000 ; includeSubDomains ; preload');
+        res.set(
+                'Content-Security-Policy',
+                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; media-src 'self'; child-src 'self';"
+        );
 
-      // remove server info.
-      res.removeHeader('X-Powered-By');
+        // remove server info.
+        res.removeHeader('X-Powered-By');
 
-      next();
+        next();
 });
 
 // data sanitization
@@ -181,9 +181,9 @@ app.use(mongoSanitize());
 app.use(xss());
 // prevent parameter pollution
 app.use(
-      hpp({
-            whitelist: ['data', 'createdAt']
-      })
+        hpp({
+                whitelist: ['data', 'createdAt']
+        })
 );
 
 /**
@@ -193,8 +193,8 @@ app.use(
 app.use(morgan(ENVIRONMENT.APP.ENV !== 'development' ? 'combined' : 'dev', { stream }));
 // add request time to req object
 app.use((req: Request, res: Response, next: NextFunction) => {
-      req.requestTime = new Date().toISOString();
-      next();
+        req.requestTime = new Date().toISOString();
+        next();
 });
 
 /**
@@ -210,27 +210,27 @@ app.use(csrfProtection);
 app.use(validateDataWithZod);
 
 app.use('/api/v1/alive', (req: Request, res: Response) => {
-      res.status(200).json({
-            status: 'success',
-            message: 'Server is alive',
-            data: {
-                  requestTime: req.requestTime
-            }
-      });
+        res.status(200).json({
+                status: 'success',
+                message: 'Server is alive',
+                data: {
+                        requestTime: req.requestTime
+                }
+        });
 });
 
 // add other routes
 
 // 404 handler - must be after all other routes
 app.use((req: Request, res: Response) => {
-      logger.error('route not found' + new Date(Date.now()) + ' ' + req.originalUrl);
-      res.status(404).json({
-            status: 'error',
-            message: `OOPs!! No handler defined for ${req.method.toUpperCase()} ${req.url}`,
-            data: {
-                  requestTime: req.requestTime
-            }
-      });
+        logger.error('route not found' + new Date(Date.now()) + ' ' + req.originalUrl);
+        res.status(404).json({
+                status: 'error',
+                message: `OOPs!! No handler defined for ${req.method.toUpperCase()} ${req.url}`,
+                data: {
+                        requestTime: req.requestTime
+                }
+        });
 });
 
 app.use(errorHandler);
