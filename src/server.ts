@@ -3,7 +3,7 @@ import http from 'http';
 import { db } from './db';
 import app from './server/app';
 import { logger } from './common';
-import { ENVIRONMENT } from '@/config';
+import { ENVIRONMENT, stopRedisConnections } from '@/config';
 
 const port = ENVIRONMENT.APP.PORT;
 const appName = ENVIRONMENT.APP.NAME;
@@ -11,10 +11,10 @@ const appName = ENVIRONMENT.APP.NAME;
 const server = http.createServer(app);
 
 const appServer = server.listen(port, async () => {
-      await db();
-      //TODO:   initialize redis queue worker
+        await db();
+        //TODO:   initialize redis queue worker
 
-      logger.info(`🚀 ${appName} is listening on port ${port}`);
+        logger.info(`🚀 ${appName} is listening on port ${port}`);
 });
 
 /**
@@ -22,19 +22,20 @@ const appServer = server.listen(port, async () => {
  */
 
 process.on('unhandledRejection', async (error: Error) => {
-      console.log('UNHANDLED REJECTION! 💥 Server Shutting down...');
-      console.log(error.name, error.message);
-      logger.error(`UNHANDLED REJECTION! 💥 Server Shutting down... [${new Date().toISOString()}]`, {
-            error
-      });
+        console.log('UNHANDLED REJECTION! 💥 Server Shutting down...');
+        console.log(error.name, error.message);
+        logger.error(`UNHANDLED REJECTION! 💥 Server Shutting down... [${new Date().toISOString()}]`, {
+                error
+        });
 
-      //TODO:   close redis connection
-      //TODO: stop queue workers
+        await stopRedisConnections();
+        //TODO: stop queue workers
+        //   await stopQueueWorkers();
 
-      appServer.close(() => {
-            logger.info('HTTP server closed');
-            process.exit(1);
-      });
+        appServer.close(() => {
+                logger.info('HTTP server closed');
+                process.exit(1);
+        });
 });
 
 /**
@@ -42,13 +43,14 @@ process.on('unhandledRejection', async (error: Error) => {
  */
 
 process.on('SIGTERM', () => {
-      logger.info('SIGTERM signal received: closing HTTP server gracefully');
+        logger.info('SIGTERM signal received: closing HTTP server gracefully');
 
-      //TODO: Close Redis connections
-      //TODO: stop queue workers
+        stopRedisConnections();
+        //TODO: stop queue workers
+        //   await stopQueueWorkers();
 
-      appServer.close(() => {
-            logger.info('HTTP server closed');
-            process.exit(0);
-      });
+        appServer.close(() => {
+                logger.info('HTTP server closed');
+                process.exit(0);
+        });
 });
