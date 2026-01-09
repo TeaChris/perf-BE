@@ -2,8 +2,8 @@ import http from 'http';
 
 import { db } from './db';
 import app from './server/app';
-import { logger } from './common';
 import { ENVIRONMENT, stopRedisConnections } from '@/config';
+import { logger, startQueueWorkers, stopQueueWorkers } from './common';
 
 const port = ENVIRONMENT.APP.PORT;
 const appName = ENVIRONMENT.APP.NAME;
@@ -12,7 +12,8 @@ const server = http.createServer(app);
 
 const appServer = server.listen(port, async () => {
         await db();
-        //TODO:   initialize redis queue worker
+
+        await startQueueWorkers();
 
         logger.info(`🚀 ${appName} is listening on port ${port}`);
 });
@@ -29,8 +30,7 @@ process.on('unhandledRejection', async (error: Error) => {
         });
 
         await stopRedisConnections();
-        //TODO: stop queue workers
-        //   await stopQueueWorkers();
+        await stopQueueWorkers();
 
         appServer.close(() => {
                 logger.info('HTTP server closed');
@@ -46,8 +46,7 @@ process.on('SIGTERM', () => {
         logger.info('SIGTERM signal received: closing HTTP server gracefully');
 
         stopRedisConnections();
-        //TODO: stop queue workers
-        //   await stopQueueWorkers();
+        stopQueueWorkers();
 
         appServer.close(() => {
                 logger.info('HTTP server closed');
