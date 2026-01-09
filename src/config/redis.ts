@@ -123,7 +123,7 @@ export const redis = {
          * @param ttl - Time to live in seconds (optional)
          */
 
-        async set(key: string, value: any, ttl?: number): Promise<void> {
+        async set<T>(key: string, value: T, ttl?: number): Promise<void> {
                 if (!cacheClient) {
                         logger.debug(`Cache disabled: skipping set operation for key ${key}`);
                         return;
@@ -146,7 +146,7 @@ export const redis = {
          * @param key - The cache key
          * @param parse - Whether to parse the result as JSON (default: true)
          */
-        async get(key: string, parse = true): Promise<any> {
+        async get<T = any>(key: string, parse = true): Promise<T | null> {
                 if (!cacheClient) {
                         logger.debug(`Cache disabled: skipping get operation for key ${key}`);
                         return null;
@@ -155,7 +155,7 @@ export const redis = {
                 try {
                         const value = await cacheClient.get(key);
                         if (!value) return null;
-                        return parse ? JSON.parse(value) : value;
+                        return (parse ? JSON.parse(value) : value) as T;
                 } catch (error) {
                         logger.error(`Error getting cache for key ${key}:`, error);
                         return null;
