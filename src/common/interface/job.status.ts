@@ -1,12 +1,12 @@
-interface JobStatus {
+interface JobStatus<T = any> {
         id: string | undefined;
-        data: any;
+        data: T;
         status: string;
         timestamp: number;
         processedOn?: number;
         finishedOn?: number;
         attemptsMade: number;
-        returnvalue: any;
+        returnvalue: unknown;
         failedReason?: string;
 }
 
