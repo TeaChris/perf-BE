@@ -125,7 +125,11 @@ const addJob = async (
  * @param concurrency - The number of jobs to process concurrently (default: 1)
  * @returns The worker instance or null if Redis is not configured
  */
-const createWorker = (queueName: string, processor: (job: Job) => Promise<any>, concurrency?: 1): Worker | null => {
+const createWorker = (
+        queueName: string,
+        processor: (job: Job) => Promise<unknown>,
+        concurrency?: number
+): Worker | null => {
         // check if worker already exists
         if (workers.has(queueName)) {
                 logger.warn(`Worker already exists for queue ${queueName}`);
