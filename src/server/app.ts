@@ -14,7 +14,7 @@ import express, { Application, NextFunction, Request, Response } from 'express';
 
 import { errorHandler } from '@/controller';
 import { ALLOWED_ORIGINS, ENVIRONMENT, stopRedisConnections } from '@/config';
-import { fifteenMinutes, logger, stream } from '@/common';
+import { fifteenMinutes, logger, stopQueueWorkers, stream } from '@/common';
 import { csrfProtection, setCsrfToken, timeoutMiddleware, validateDataWithZod } from '@/middleware';
 
 /**
@@ -27,8 +27,7 @@ process.on('uncaughtException', async (error: Error) => {
         logger.error('UNCAUGHT EXCEPTION!! 💥 Server Shutting down...', error);
 
         await stopRedisConnections();
-        //   TODO: stop queue workers
-        //   await stopQueueWorkers();
+        await stopQueueWorkers();
         process.exit(1);
 });
 
@@ -222,6 +221,8 @@ app.use('/api/v1/alive', (req: Request, res: Response) => {
 // add other routes
 
 // 404 handler - must be after all other routes
+app.use(errorHandler);
+
 app.use((req: Request, res: Response) => {
         logger.error('route not found' + new Date(Date.now()) + ' ' + req.originalUrl);
         res.status(404).json({
@@ -232,7 +233,5 @@ app.use((req: Request, res: Response) => {
                 }
         });
 });
-
-app.use(errorHandler);
 
 export default app;
