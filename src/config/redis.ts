@@ -14,7 +14,7 @@ export const createRedisClient = () => {
 
                 const redisClient = new Redis(redisUrl, {
                         tls: {
-                                rejectUnauthorized: false
+                                rejectUnauthorized: true
                         },
                         maxRetriesPerRequest: null,
                         enableOfflineQueue: true,
@@ -67,7 +67,7 @@ export const createCacheClient = () => {
 
                         client = new Redis(connectionString, {
                                 tls: {
-                                        rejectUnauthorized: false
+                                        rejectUnauthorized: true
                                 },
                                 maxRetriesPerRequest: 3,
                                 enableOfflineQueue: false,
