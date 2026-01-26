@@ -33,7 +33,7 @@ const csrfProtection = catchAsync(async (req: Request, res: Response, next: Next
         }
 
         const csrfHeader = req.get('x-csrf-token');
-        const csrfCookie = req.cookies?.csrfToken;
+        const csrfCookie = req.cookies ? req.cookies.csrfToken : undefined;
 
         if (!csrfHeader || !csrfCookie || csrfHeader !== csrfCookie) {
                 return next(new AppError('CSRF token not found', 403));
