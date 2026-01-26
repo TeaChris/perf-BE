@@ -15,7 +15,13 @@ import express, { Application, NextFunction, Request, Response } from 'express';
 import { errorHandler } from '@/controller';
 import { ALLOWED_ORIGINS, ENVIRONMENT, stopRedisConnections } from '@/config';
 import { fifteenMinutes, logger, stopQueueWorkers, stream } from '@/common';
-import { csrfProtection, setCsrfToken, timeoutMiddleware, validateDataWithZod } from '@/middleware';
+import {
+        setCsrfToken,
+        csrfProtection,
+        timeoutMiddleware,
+        validateDataWithZod,
+        correlationIdMiddleware
+} from '@/middleware';
 
 /**
  * handle uncaught exceptions
@@ -36,6 +42,8 @@ process.on('uncaughtException', async (error: Error) => {
  */
 
 const app: Application = express();
+
+app.use(correlationIdMiddleware);
 
 /**
  * express configuration
