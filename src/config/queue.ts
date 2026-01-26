@@ -108,7 +108,7 @@ const addJob = async (
                 logger.info(`Job data: ${JSON.stringify(jobData)}`);
 
                 return (
-                        job.id?.toString() ??
+                        (job && job.id ? job.id.toString() : undefined) ??
                         `error:${queueName}:${Date.now()}:${Math.random().toString(36).substring(2, 10)}`
                 );
         } catch (error) {
