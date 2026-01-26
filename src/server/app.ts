@@ -4,6 +4,7 @@ import hpp from 'hpp';
 import cors from 'cors';
 import morgan from 'morgan';
 import xss from 'xss-clean';
+import mongoose from 'mongoose';
 import helmetCsp from 'helmet-csp';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
@@ -13,7 +14,7 @@ import mongoSanitize from 'express-mongo-sanitize';
 import express, { Application, NextFunction, Request, Response } from 'express';
 
 import { errorHandler } from '@/controller';
-import { ALLOWED_ORIGINS, ENVIRONMENT, stopRedisConnections } from '@/config';
+import { ALLOWED_ORIGINS, ENVIRONMENT, stopRedisConnections, redisClient } from '@/config';
 import { fifteenMinutes, logger, stopQueueWorkers, stream } from '@/common';
 import {
         setCsrfToken,
@@ -215,6 +216,31 @@ app.use(timeoutMiddleware);
 app.use(setCsrfToken);
 app.use(csrfProtection);
 app.use(validateDataWithZod);
+
+app.get('/api/v1/health', async (req: Request, res: Response) => {
+        const mongoStatus = mongoose.connection.readyState === 1 ? 'up' : 'down';
+        let redisStatus = 'down';
+
+        try {
+                if (redisClient && (await redisClient.ping()) === 'PONG') {
+                        redisStatus = 'up';
+                }
+        } catch (error) {
+                logger.error(`Redis health check failed: ${error}`);
+        }
+
+        const status = mongoStatus === 'up' && redisStatus === 'up' ? 200 : 503;
+
+        res.status(status).json({
+                status: status === 200 ? 'success' : 'error',
+                message: 'System health status',
+                data: {
+                        mongodb: mongoStatus,
+                        redis: redisStatus,
+                        timestamp: new Date().toISOString()
+                }
+        });
+});
 
 app.use('/api/v1/alive', (req: Request, res: Response) => {
         res.status(200).json({
