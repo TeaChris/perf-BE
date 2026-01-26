@@ -153,7 +153,7 @@ app.use(helmet.permittedCrossDomainPolicies());
  */
 app.use((req, res, next) => {
         // prevent browser from caching sensitive info.
-        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate', 'private');
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         res.set('Pragma', 'no-cache');
         res.set('Expires', '0');
 
