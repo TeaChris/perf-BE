@@ -221,8 +221,6 @@ app.use('/api/v1/alive', (req: Request, res: Response) => {
 // add other routes
 
 // 404 handler - must be after all other routes
-app.use(errorHandler);
-
 app.use((req: Request, res: Response) => {
         logger.error('route not found' + new Date(Date.now()) + ' ' + req.originalUrl);
         res.status(404).json({
@@ -233,5 +231,7 @@ app.use((req: Request, res: Response) => {
                 }
         });
 });
+
+app.use(errorHandler);
 
 export default app;
