@@ -3,7 +3,7 @@ import Redis from 'ioredis';
 import { ENVIRONMENT } from './environment';
 import { logger } from '@/common';
 
-export const createRedisClient = () => {
+export const createRedisClient = (): Redis | null => {
         try {
                 const redisUrl = ENVIRONMENT.REDIS.URL;
 
@@ -44,10 +44,11 @@ export const createRedisClient = () => {
                 return redisClient;
         } catch (error) {
                 logger.error('❌ Redis client error:', error);
+                return null;
         }
 };
 
-export const createCacheClient = () => {
+export const createCacheClient = (): Redis | null => {
         try {
                 const cacheUrl = ENVIRONMENT.CACHE_REDIS.URL;
                 const cachedPassword = ENVIRONMENT.REDIS.PASSWORD;
@@ -109,6 +110,7 @@ export const createCacheClient = () => {
                 return client;
         } catch (error) {
                 logger.error('❌ Failed to create redis cache client:', error);
+                return null;
         }
 };
 
@@ -146,7 +148,7 @@ export const redis = {
          * @param key - The cache key
          * @param parse - Whether to parse the result as JSON (default: true)
          */
-        async get<T = any>(key: string, parse = true): Promise<T | null> {
+        async get<T = unknown>(key: string, parse = true): Promise<T | null> {
                 if (!cacheClient) {
                         logger.debug(`Cache disabled: skipping get operation for key ${key}`);
                         return null;
