@@ -5,12 +5,12 @@ import AppError from '@/common/utils/app.error';
 import { CastError, Error as MongooseError } from 'mongoose';
 import { Request, Response, NextFunction } from 'express';
 
-const handleMongooseCastError = (err: CastError) => {
+const handleMongooseCastError = (err: CastError): AppError => {
         const message = `Invalid ${err.path} value ${err.value}`;
         return new AppError(message, 400);
 };
 
-const handleMongooseValidationError = (err: MongooseError.ValidationError) => {
+const handleMongooseValidationError = (err: MongooseError.ValidationError): AppError => {
         const errors = Object.values(err.errors).map(
                 val => (val as MongooseError.ValidatorError | MongooseError.CastError).message
         );
@@ -18,39 +18,33 @@ const handleMongooseValidationError = (err: MongooseError.ValidationError) => {
         return new AppError(message, 400);
 };
 
-const handleMongooseDuplicateFieldsError = (err: any, next: NextFunction) => {
+const handleMongooseDuplicateFieldsError = (err: MongooseError & { keyValue?: any; code?: number }): AppError => {
         logger.error('Unhandled error:', err);
 
-        if (err.code === 11000) {
-                const field = Object.keys(err.keyValue || {})[0]
-                        .replace(/([a-z])([A-Z])/g, '$1 $2')
-                        .split(/(?=[A-Z])/)
-                        .map((word, index) =>
-                                index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word.toLowerCase()
-                        )
-                        .join('');
+        const field = Object.keys(err.keyValue || {})[0]
+                .replace(/([a-z])([A-Z])/g, '$1 $2')
+                .split(/(?=[A-Z])/)
+                .map((word, index) => (index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word.toLowerCase()))
+                .join('');
 
-                const value = err.keyValue[field];
-                const message = `${field.charAt(0).toUpperCase() + field.slice(1)} already exists with value ${value}`;
-                return new AppError(message, 409);
-        } else {
-                next(err);
-        }
+        const value = err.keyValue ? err.keyValue[field] : 'unknown';
+        const message = `${field.charAt(0).toUpperCase() + field.slice(1)} already exists with value ${value}`;
+        return new AppError(message, 409);
 };
 
-const handleJWTExpiredError = () => {
+const handleJWTExpiredError = (): AppError => {
         return new AppError('Token expired', 401);
 };
 
-const handleJWTError = () => {
+const handleJWTError = (): AppError => {
         return new AppError('Invalid token. Please log in again!', 401);
 };
 
-const handleTimeoutError = () => {
+const handleTimeoutError = (): AppError => {
         return new AppError('Request timed out', 408);
 };
 
-const sendErrorDev = (err: AppError, res: Response) => {
+const sendErrorDev = (err: AppError, res: Response): void => {
         res.status(err.statusCode).json({
                 error: err,
                 stack: err.stack,
@@ -59,8 +53,8 @@ const sendErrorDev = (err: AppError, res: Response) => {
         });
 };
 
-const sendErrorProd = (err: AppError, res: Response) => {
-        if (err?.isOperational) {
+const sendErrorProd = (err: AppError, res: Response): void => {
+        if (err && err.isOperational) {
                 logger.error(`Operational error:`, err.message);
                 res.status(err.statusCode).json({
                         status: err.status,
@@ -76,7 +70,12 @@ const sendErrorProd = (err: AppError, res: Response) => {
         }
 };
 
-const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+const errorHandler = (
+        err: AppError & { code?: number; name?: string; timeout?: boolean },
+        req: Request,
+        res: Response,
+        next: NextFunction
+): void => {
         err.statusCode = err.statusCode || 500;
         err.status = err.status || 'Error';
 
@@ -90,7 +89,7 @@ const errorHandler = (err: any, req: Request, res: Response, next: NextFunction)
                 if ('timeout' in err && err.timeout) error = handleTimeoutError();
                 if (err.name === 'JsonWebTokenError') error = handleJWTError();
                 if (err.name === 'TokenExpiredError') error = handleJWTExpiredError();
-                if ((err as MongooseError) && err.code === 11000) error = handleMongooseDuplicateFieldsError(err, next);
+                if ((err as any).code === 11000) error = handleMongooseDuplicateFieldsError(err as any);
 
                 sendErrorProd(error, res);
         }
