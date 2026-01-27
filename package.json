@@ -29,6 +29,7 @@
         "typescript": "^5.9.3"
     },
     "dependencies": {
+        "argon2": "^0.44.0",
         "bcryptjs": "^3.0.3",
         "bullmq": "^5.66.4",
         "compression": "^1.8.1",
