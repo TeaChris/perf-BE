@@ -5,7 +5,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import xss from 'xss-clean';
 import mongoose from 'mongoose';
-import helmetCsp from 'helmet-csp';
+// import helmetCsp from 'helmet-csp';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
@@ -111,51 +111,32 @@ app.use(
 
 app.use(
         helmet({
-                contentSecurityPolicy: false
+                contentSecurityPolicy: {
+                        directives: {
+                                baseUri: ["'self'"],
+                                objectSrc: ["'none'"],
+                                defaultSrc: ["'self'"],
+                                frameAncestors: ["'none'"],
+                                upgradeInsecureRequests: [],
+                                imgSrc: ["'self'", 'data:', 'https:'],
+                                styleSrc: ["'self'", "'unsafe-inline'"],
+                                scriptSrc: ["'self'", "'unsafe-inline'"],
+                                fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+                                connectSrc: ["'self'", 'https://api.mapbox.com'],
+                                frameSrc: ["'self'"],
+                                mediaSrc: ["'self'"],
+                                childSrc: ["'self'"],
+                                reportUri: '/csp-report'
+                        }
+                },
+                frameguard: { action: 'deny' },
+                referrerPolicy: { policy: 'same-origin' },
+                hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+                noSniff: true,
+                dnsPrefetchControl: { allow: false },
+                permittedCrossDomainPolicies: { permittedPolicies: 'none' }
         })
 );
-
-app.use(
-        helmetCsp({
-                directives: {
-                        baseUri: ['"self"'],
-                        objectSrc: ['"none"'],
-                        defaultSrc: ['"self"'],
-                        frameAncestors: ['"none"'],
-                        upgradeInsecureRequests: [],
-                        imgSrc: ['"self"', 'data', 'https:'],
-                        styleSrc: ['"self"', '"unsafe-inline"'],
-                        scriptSrc: ['"self"', '"unsafe-inline"'],
-                        fontSrc: ['"self"', 'https://fonts.gstatic.com'],
-                        connectSrc: ['"self"', 'https://api.mapbox.com'],
-                        frameSrc: ['"self"'],
-                        mediaSrc: ['"self"'],
-                        childSrc: ['"self"'],
-                        reportUri: '/csp-report'
-                }
-        })
-);
-
-const helmetConfig: HelmetOptions = {
-        frameguard: { action: 'deny' },
-        xssFilter: true,
-        referrerPolicy: { policy: 'same-origin' },
-        hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
-};
-
-app.use(helmet(helmetConfig));
-
-/**
- * secure cookies and other helmet-related configurations
- */
-
-app.use(helmet.noSniff());
-app.use(helmet.ieNoOpen());
-app.use(helmet.hidePoweredBy());
-app.use(helmet.dnsPrefetchControl());
-app.use(helmet.referrerPolicy());
-app.use(helmet.frameguard({ action: 'deny' }));
-app.use(helmet.permittedCrossDomainPolicies());
 
 /**
  * additional security headers
@@ -166,16 +147,7 @@ app.use((req, res, next) => {
         res.set('Pragma', 'no-cache');
         res.set('Expires', '0');
 
-        res.set('X-Frame-Options', 'DENY');
-        res.set('X-Content-Type-Options', 'nosniff');
-        res.set('X-XSS-Protection', '1; mode=block');
-        res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-        res.set('Permissions-Policy', 'geolocation=(), microphone=()');
-        res.set('Strict-Transport-Security', 'max-age=31536000 ; includeSubDomains ; preload');
-        res.set(
-                'Content-Security-Policy',
-                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; media-src 'self'; child-src 'self';"
-        );
+        res.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
 
         // remove server info.
         res.removeHeader('X-Powered-By');
