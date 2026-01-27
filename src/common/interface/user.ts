@@ -1,0 +1,31 @@
+import { Model } from 'mongoose';
+import type { SignOptions } from 'jsonwebtoken';
+
+import { Role } from '../constant';
+
+export interface IUser {
+        role: Role;
+        email: string;
+        lastLogin: Date;
+        createdAt: Date;
+        updatedAt: Date;
+        password: string;
+        username: string;
+        ipAddress: string;
+        isDeleted: boolean;
+        isVerified: boolean;
+        isSuspended: boolean;
+        loginAttempts: number;
+        lockoutUntil: Date | null;
+        verificationToken: string | null;
+        isTermsAndConditionAccepted: boolean;
+}
+
+export interface UserMethods extends Omit<IUser, 'toJSON'> {
+        generateAccessToken(options?: SignOptions): string;
+        generateRefreshToken(options?: SignOptions): string;
+        verifyPassword(enterPassword: string): Promise<boolean>;
+        toJSON(excludedFields?: Array<keyof IUser>): object;
+}
+
+export type UserModel = Model<IUser, {}, UserMethods>;
