@@ -56,8 +56,8 @@ export const authenticate = async ({
         };
 
         const revokeAllUserSessions = async (userId: string) => {
-                logger.warn(`SECURITY: Revoking all sessions for user ${userId} due to suspected refresh token reuse`);
-                // Implementation for revocation logic would go here (e.g., clearing all user-related refresh JTI tags)
+                logger.warn(`SECURITY: Revoking all sessions for user ${userId} due to suspected token reuse`);
+                // Implementation for revocation logic would go here
         };
 
         // helper function to handle refresh token rotation
@@ -78,8 +78,7 @@ export const authenticate = async ({
                         const storedUserId = await redis.get<string>(`refresh:${decoded.jti}`, false);
 
                         if (!storedUserId) {
-                                // JTI is not in whitelist. Since it's a valid JWT, it must have been rotated or revoked.
-                                // This is a classic indicator of a Replay Attack.
+                                // JTI is not in whitelist. INDICATOR OF REPLAY ATTACK or REVOCATION.
                                 await revokeAllUserSessions(decoded.id);
                                 throw new AppError('Session invalid. Please log in again', 401);
                         }
@@ -111,7 +110,21 @@ export const authenticate = async ({
         // 1) Verify Access Token if provided
         if (perfAccessToken) {
                 try {
-                        const decoded = jwt.verify(perfAccessToken, ENVIRONMENT.JWT.ACCESS_KEY) as { id: string };
+                        const decoded = jwt.verify(perfAccessToken, ENVIRONMENT.JWT.ACCESS_KEY) as {
+                                id: string;
+                                jti?: string;
+                        };
+
+                        // Security Hardening: Check if JTI is still valid in Redis
+                        if (decoded.jti) {
+                                const isValidSession = await redis.get(`refresh:${decoded.jti}`, false);
+                                if (!isValidSession) {
+                                        // Token is valid but JTI is not in whitelist (rotated or revoked)
+                                        // Force fallback to refresh token logic
+                                        return handleRefreshToken();
+                                }
+                        }
+
                         const currentUser = await verifyAndFetchUser(decoded.id);
 
                         return {
