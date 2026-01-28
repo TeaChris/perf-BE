@@ -24,6 +24,8 @@ import {
         correlationIdMiddleware
 } from '@/middleware';
 
+import { authRouter } from '@/routes';
+
 /**
  * handle uncaught exceptions
  */
@@ -187,7 +189,7 @@ app.use(timeoutMiddleware);
  */
 app.use(setCsrfToken);
 app.use(csrfProtection);
-app.use(validateDataWithZod);
+app.use(validateDataWithZod());
 
 app.get('/api/v1/health', async (req: Request, res: Response) => {
         const mongoStatus = mongoose.connection.readyState === 1 ? 'up' : 'down';
@@ -223,9 +225,7 @@ app.use('/api/v1/alive', (req: Request, res: Response) => {
                 }
         });
 });
-
-// add other routes
-
+app.use('/api/v1/auth', authRouter);
 // 404 handler - must be after all other routes
 app.use((req: Request, res: Response) => {
         logger.error('route not found' + new Date(Date.now()) + ' ' + req.originalUrl);
