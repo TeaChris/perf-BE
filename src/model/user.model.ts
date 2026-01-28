@@ -1,8 +1,10 @@
 import mongoose, { HydratedDocument, Model } from 'mongoose';
 import * as argon2 from 'argon2';
+import jwt from 'jsonwebtoken';
 
 import { IUser, UserMethods } from '@/common';
 import { Role } from '@/common';
+import { ENVIRONMENT } from '@/config';
 
 type UserModel = Model<IUser, unknown, UserMethods>;
 
@@ -114,5 +116,31 @@ userSchema.pre('save', async function (this: HydratedDocument<IUser>) {
         if (!this.isModified('password')) return;
         this.password = await argon2.hash(this.password);
 });
+
+// generate access token
+userSchema.method(
+        'generateAccessToken',
+        function (this: HydratedDocument<IUser>, options?: jwt.SignOptions, jti?: string) {
+                const signOptions: jwt.SignOptions = {
+                        expiresIn: ENVIRONMENT.JWT_EXPIRES_IN.ACCESS as any,
+                        ...options,
+                        jwtid: jti
+                };
+                return jwt.sign({ id: this._id }, ENVIRONMENT.JWT.ACCESS_KEY, signOptions);
+        }
+);
+
+// generate refresh token
+userSchema.method(
+        'generateRefreshToken',
+        function (this: HydratedDocument<IUser>, options?: jwt.SignOptions, jti?: string) {
+                const signOptions: jwt.SignOptions = {
+                        expiresIn: ENVIRONMENT.JWT_EXPIRES_IN.REFRESH as any,
+                        ...options,
+                        jwtid: jti
+                };
+                return jwt.sign({ id: this._id }, ENVIRONMENT.JWT.REFRESH_KEY, signOptions);
+        }
+);
 
 export const User = (mongoose.models.User as UserModel) || mongoose.model<IUser, UserModel>('User', userSchema);
