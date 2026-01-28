@@ -22,8 +22,8 @@ export interface IUser {
 }
 
 export interface UserMethods extends Omit<IUser, 'toJSON'> {
-        generateAccessToken(options?: SignOptions): string;
-        generateRefreshToken(options?: SignOptions): string;
+        generateAccessToken(options?: SignOptions, jti?: string): string;
+        generateRefreshToken(options?: SignOptions, jti?: string): string;
         verifyPassword(enterPassword: string): Promise<boolean>;
         toJSON(excludedFields?: Array<keyof IUser>): object;
 }
