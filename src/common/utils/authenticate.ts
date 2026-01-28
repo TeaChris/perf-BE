@@ -57,7 +57,18 @@ export const authenticate = async ({
 
         const revokeAllUserSessions = async (userId: string) => {
                 logger.warn(`SECURITY: Revoking all sessions for user ${userId} due to suspected token reuse`);
-                // Implementation for revocation logic would go here
+
+                const userRefreshKey = `user:${userId}:refresh`;
+                const activeJtis = await redis.smembers(userRefreshKey);
+
+                if (activeJtis.length > 0) {
+                        // Revoke all individual refresh tokens
+                        const keysToRevoke = activeJtis.map(jti => `refresh:${jti}`);
+                        await Promise.all(keysToRevoke.map(key => redis.del(key)));
+
+                        // Clear the tracking set
+                        await redis.del(userRefreshKey);
+                }
         };
 
         // helper function to handle refresh token rotation
@@ -74,7 +85,7 @@ export const authenticate = async ({
 
                         const currentUser = await verifyAndFetchUser(decoded.id);
 
-                        // 1) Verify if this JTI is in the whitelist (exists and not used)
+                        // 1) Verify if this JTI is in the whitelist
                         const storedUserId = await redis.get<string>(`refresh:${decoded.jti}`, false);
 
                         if (!storedUserId) {
@@ -84,16 +95,18 @@ export const authenticate = async ({
                         }
 
                         // 2) Rotate the token
-                        // Remove old JTI from whitelist
+                        // Remove old JTI from whitelist and user tracking set
                         await redis.del(`refresh:${decoded.jti}`);
+                        await redis.srem(`user:${decoded.id}:refresh`, decoded.jti);
 
                         // Generate new JTI and tokens
                         const newJti = uuidv4();
                         const newAccessToken = currentUser.generateAccessToken({}, newJti);
                         const newRefreshToken = currentUser.generateRefreshToken({}, newJti);
 
-                        // Whitelist new JTI
+                        // Whitelist new JTI and add to user tracking set
                         await redis.set(`refresh:${newJti}`, decoded.id, ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS);
+                        await redis.sadd(`user:${decoded.id}:refresh`, newJti);
 
                         return {
                                 currentUser: currentUser as any as Require_id<IUser>,
@@ -120,7 +133,6 @@ export const authenticate = async ({
                                 const isValidSession = await redis.get(`refresh:${decoded.jti}`, false);
                                 if (!isValidSession) {
                                         // Token is valid but JTI is not in whitelist (rotated or revoked)
-                                        // Force fallback to refresh token logic
                                         return handleRefreshToken();
                                 }
                         }
