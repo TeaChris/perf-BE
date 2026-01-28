@@ -10,7 +10,7 @@ import { logger, IUser, toJSON, UserMethods } from '@/common';
 type AuthenticateResult = {
         currentUser: Require_id<IUser>;
         accessToken: string;
-        refreshToken: string;
+        refreshToken?: string;
 };
 
 export const authenticate = async ({
@@ -130,7 +130,7 @@ export const authenticate = async ({
                         return {
                                 currentUser: currentUser as any as Require_id<IUser>,
                                 accessToken: perfAccessToken,
-                                refreshToken: perfRefreshToken || ''
+                                refreshToken: perfRefreshToken
                         };
                 } catch (err: any) {
                         // Fallback to refresh token only if access token is expired
