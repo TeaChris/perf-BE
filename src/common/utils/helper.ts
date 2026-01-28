@@ -1,4 +1,6 @@
+import { ENVIRONMENT } from '@/config';
 import { IUser } from '../interface';
+import { Response, CookieOptions } from 'express';
 
 const dateFromString = async (value: string) => {
         const date = new Date(value);
@@ -61,9 +63,29 @@ const toJSON = (obj: IUser, fields?: string[]): Partial<IUser> => {
         return rest;
 };
 
+const setCookie = (res: Response, name: string, value: string, options: CookieOptions = {}) => {
+        res.cookie(name, value, {
+                httpOnly: true,
+                secure: ENVIRONMENT.APP.ENV === 'production',
+                path: '/',
+                sameSite: ENVIRONMENT.APP.ENV === 'production' ? 'none' : 'lax',
+                partitioned: ENVIRONMENT.APP.ENV === 'production',
+                ...options
+        });
+};
+
 const oneHour = 60 * 60 * 1000;
 const fiveMinutes = 5 * 60 * 1000;
 const fifteenMinutes = 15 * 60 * 1000;
 const twentyFourHours = 24 * 60 * 60 * 1000;
 
-export { oneHour, fiveMinutes, fifteenMinutes, twentyFourHours, dateFromString, sanitizeRequestBody, toJSON };
+export {
+        toJSON,
+        oneHour,
+        setCookie,
+        fiveMinutes,
+        fifteenMinutes,
+        dateFromString,
+        twentyFourHours,
+        sanitizeRequestBody
+};
