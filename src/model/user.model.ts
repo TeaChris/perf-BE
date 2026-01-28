@@ -84,6 +84,10 @@ const userSchema = new mongoose.Schema<IUser, UserModel, UserMethods>(
                         type: Boolean,
                         default: false,
                         required: [true, 'Terms and condition is required']
+                },
+                tokenVersion: {
+                        type: Number,
+                        default: 0
                 }
         },
         {
@@ -123,10 +127,12 @@ userSchema.method(
         function (this: HydratedDocument<IUser>, options?: jwt.SignOptions, jti?: string) {
                 const signOptions: jwt.SignOptions = {
                         expiresIn: ENVIRONMENT.JWT_EXPIRES_IN.ACCESS as any,
+                        issuer: ENVIRONMENT.APP.NAME,
+                        audience: ENVIRONMENT.APP.CLIENT,
                         ...options,
                         jwtid: jti
                 };
-                return jwt.sign({ id: this._id }, ENVIRONMENT.JWT.ACCESS_KEY, signOptions);
+                return jwt.sign({ id: this._id, version: this.tokenVersion }, ENVIRONMENT.JWT.ACCESS_KEY, signOptions);
         }
 );
 
@@ -136,10 +142,12 @@ userSchema.method(
         function (this: HydratedDocument<IUser>, options?: jwt.SignOptions, jti?: string) {
                 const signOptions: jwt.SignOptions = {
                         expiresIn: ENVIRONMENT.JWT_EXPIRES_IN.REFRESH as any,
+                        issuer: ENVIRONMENT.APP.NAME,
+                        audience: ENVIRONMENT.APP.CLIENT,
                         ...options,
                         jwtid: jti
                 };
-                return jwt.sign({ id: this._id }, ENVIRONMENT.JWT.REFRESH_KEY, signOptions);
+                return jwt.sign({ id: this._id, version: this.tokenVersion }, ENVIRONMENT.JWT.REFRESH_KEY, signOptions);
         }
 );
 
