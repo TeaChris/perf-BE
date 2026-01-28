@@ -10,30 +10,33 @@ type MyDataShape = z.infer<typeof mainSchema>;
 
 const methodsToSkipValidation = ['GET'];
 
-const validateDataWithZod = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-        // skip validation for defined methods and routes
-        if (methodsToSkipValidation.includes(req.method)) {
-                return next();
-        }
+const validateDataWithZod = (schema?: z.ZodSchema) =>
+        catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+                // skip validation for defined methods and routes
+                if (methodsToSkipValidation.includes(req.method)) {
+                        return next();
+                }
 
-        const rawData = req.body as Partial<MyDataShape>;
+                const rawData = req.body;
 
-        if (!rawData) return next();
+                if (!rawData) return next();
 
-        // Sanitize input data first
-        const sanitizedData = sanitizeRequestBody(rawData) as Partial<MyDataShape>;
+                // Sanitize input data first
+                const sanitizedData = sanitizeRequestBody(rawData);
 
-        // Validate only if it contains the fields in req.body against the mainSchema
-        const mainResult = partialMainSchema.safeParse(sanitizedData);
-        if (!mainResult.success) {
-                const errorDetails = mainResult.error;
-                throw new AppError('Validation failed', 422, errorDetails);
-        } else {
-                // this ensures that only fields defined in the mainSchema are passed to the req.body
-                req.body = mainResult.data as Partial<MyDataShape>;
-        }
+                // If a specific schema is provided, use it. Otherwise, use the legacy global logic.
+                const targetSchema = schema || partialMainSchema;
 
-        next();
-});
+                const result = targetSchema.safeParse(sanitizedData);
+                if (!result.success) {
+                        const errorDetails = result.error;
+                        throw new AppError('Validation failed', 422, errorDetails);
+                } else {
+                        // this ensures that only fields defined in the schema are passed to the req.body
+                        req.body = result.data;
+                }
+
+                next();
+        });
 
 export { validateDataWithZod };
