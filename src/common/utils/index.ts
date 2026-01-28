@@ -3,3 +3,4 @@ export * from './helper';
 export * from './app.error';
 export * from './queue';
 export * from './context';
+export * from './authenticate';
