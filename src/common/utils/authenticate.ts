@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
+import { createHash } from 'crypto';
 import { HydratedDocument, Require_id } from 'mongoose';
 
 import { User } from '@/model';
@@ -13,34 +14,57 @@ type AuthenticateResult = {
         refreshToken?: string;
 };
 
+type TokenPayload = {
+        id: string;
+        version: number;
+        jti?: string;
+};
+
 export const authenticate = async ({
         perfAccessToken,
-        perfRefreshToken
+        perfRefreshToken,
+        ip,
+        ua
 }: {
         perfAccessToken?: string;
         perfRefreshToken?: string;
+        ip?: string;
+        ua?: string;
 }): Promise<AuthenticateResult> => {
-        const verifyAndFetchUser = async (userId: string): Promise<HydratedDocument<IUser, UserMethods>> => {
+        // Simple hash for client context binding
+        const getContextHash = () => {
+                if (!ip && !ua) return 'no-context';
+                return createHash('sha256').update(`${ip}-${ua}`).digest('hex');
+        };
+
+        const verifyAndFetchUser = async (
+                userId: string,
+                tokenVersion: number
+        ): Promise<HydratedDocument<IUser, UserMethods>> => {
                 // 1) Try to get user from cache (plain JSON)
                 const cachedUser = await redis.get<IUser>(`user:${userId}`);
 
                 let user: HydratedDocument<IUser, UserMethods>;
                 if (cachedUser) {
-                        // Rehydrate the plain object into a Mongoose document
                         user = User.hydrate(cachedUser) as HydratedDocument<IUser, UserMethods>;
                 } else {
                         // 2) Fetch from database if not in cache
                         user = (await User.findById(userId).select(
-                                '+isSuspended +isVerified'
+                                '+isSuspended +isVerified +tokenVersion'
                         )) as unknown as HydratedDocument<IUser, UserMethods>;
 
                         if (!user) {
                                 throw new AppError('Authentication failed', 401);
                         }
 
-                        // 3) Cache plain JSON data (without methods or internal ORM state)
+                        // 3) Cache plain JSON data
                         const userToCache = toJSON(user, ['password', '__v']);
                         await redis.set(`user:${userId}`, userToCache, ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS);
+                }
+
+                // Hardening: Check Token Version
+                if (user.tokenVersion !== tokenVersion) {
+                        throw new AppError('Session invalidated. Please log in again', 401);
                 }
 
                 // Check user status
@@ -56,17 +80,16 @@ export const authenticate = async ({
         };
 
         const revokeAllUserSessions = async (userId: string) => {
-                logger.warn(`SECURITY: Revoking all sessions for user ${userId} due to suspected token reuse`);
+                logger.warn(
+                        `SECURITY: Revoking all sessions for user ${userId} due to suspected token reuse or context mismatch`
+                );
 
                 const userRefreshKey = `user:${userId}:refresh`;
                 const activeJtis = await redis.smembers(userRefreshKey);
 
                 if (activeJtis.length > 0) {
-                        // Revoke all individual refresh tokens
                         const keysToRevoke = activeJtis.map(jti => `refresh:${jti}`);
                         await Promise.all(keysToRevoke.map(key => redis.del(key)));
-
-                        // Clear the tracking set
                         await redis.del(userRefreshKey);
                 }
         };
@@ -77,35 +100,51 @@ export const authenticate = async ({
                         throw new AppError('Please log in to access this resource', 401);
                 }
 
+                const verifyOptions: jwt.VerifyOptions = {
+                        issuer: ENVIRONMENT.APP.NAME,
+                        audience: ENVIRONMENT.APP.CLIENT
+                };
+
                 try {
-                        const decoded = jwt.verify(perfRefreshToken, ENVIRONMENT.JWT.REFRESH_KEY) as {
-                                id: string;
-                                jti: string;
-                        };
+                        const decoded = jwt.verify(
+                                perfRefreshToken,
+                                ENVIRONMENT.JWT.REFRESH_KEY,
+                                verifyOptions
+                        ) as TokenPayload;
 
-                        const currentUser = await verifyAndFetchUser(decoded.id);
+                        const currentUser = await verifyAndFetchUser(decoded.id, decoded.version);
 
-                        // 1) Verify if this JTI is in the whitelist
-                        const storedUserId = await redis.get<string>(`refresh:${decoded.jti}`, false);
+                        // 1) Verify if this JTI is in the whitelist and check context
+                        const storedData = await redis.get<{ userId: string; context: string }>(
+                                `refresh:${decoded.jti}`
+                        );
 
-                        if (!storedUserId) {
-                                // JTI is not in whitelist. INDICATOR OF REPLAY ATTACK or REVOCATION.
+                        if (!storedData) {
                                 await revokeAllUserSessions(decoded.id);
                                 throw new AppError('Session invalid. Please log in again', 401);
                         }
 
+                        // Hardening: Verify Client Context Binding
+                        if (storedData.context !== getContextHash()) {
+                                logger.error(
+                                        `SECURITY: Context mismatch for user ${decoded.id}. Expected ${storedData.context}, got ${getContextHash()}`
+                                );
+                                await revokeAllUserSessions(decoded.id);
+                                throw new AppError('Session expired. Please log in again', 401);
+                        }
+
                         // 2) Rotate the token
-                        // Remove old JTI from whitelist and user tracking set
                         await redis.del(`refresh:${decoded.jti}`);
-                        await redis.srem(`user:${decoded.id}:refresh`, decoded.jti);
+                        await redis.srem(`user:${decoded.id}:refresh`, decoded.jti!);
 
                         // Generate new JTI and tokens
                         const newJti = uuidv4();
                         const newAccessToken = currentUser.generateAccessToken({}, newJti);
                         const newRefreshToken = currentUser.generateRefreshToken({}, newJti);
 
-                        // Whitelist new JTI and add to user tracking set
-                        await redis.set(`refresh:${newJti}`, decoded.id, ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS);
+                        // Whitelist new JTI with context and userId
+                        const cacheData = { userId: decoded.id, context: getContextHash() };
+                        await redis.set(`refresh:${newJti}`, cacheData, ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS);
                         await redis.sadd(`user:${decoded.id}:refresh`, newJti);
 
                         return {
@@ -122,22 +161,27 @@ export const authenticate = async ({
 
         // 1) Verify Access Token if provided
         if (perfAccessToken) {
-                try {
-                        const decoded = jwt.verify(perfAccessToken, ENVIRONMENT.JWT.ACCESS_KEY) as {
-                                id: string;
-                                jti?: string;
-                        };
+                const verifyOptions: jwt.VerifyOptions = {
+                        issuer: ENVIRONMENT.APP.NAME,
+                        audience: ENVIRONMENT.APP.CLIENT
+                };
 
-                        // Security Hardening: Check if JTI is still valid in Redis
+                try {
+                        const decoded = jwt.verify(
+                                perfAccessToken,
+                                ENVIRONMENT.JWT.ACCESS_KEY,
+                                verifyOptions
+                        ) as TokenPayload;
+
+                        // Security Hardening: Check if associated JTI is still valid in Redis
                         if (decoded.jti) {
                                 const isValidSession = await redis.get(`refresh:${decoded.jti}`, false);
                                 if (!isValidSession) {
-                                        // Token is valid but JTI is not in whitelist (rotated or revoked)
                                         return handleRefreshToken();
                                 }
                         }
 
-                        const currentUser = await verifyAndFetchUser(decoded.id);
+                        const currentUser = await verifyAndFetchUser(decoded.id, decoded.version);
 
                         return {
                                 currentUser: currentUser as any as Require_id<IUser>,
@@ -145,7 +189,6 @@ export const authenticate = async ({
                                 refreshToken: perfRefreshToken
                         };
                 } catch (err: any) {
-                        // Fallback to refresh token only if access token is expired
                         if (err.name !== 'TokenExpiredError') {
                                 throw new AppError('Invalid session', 401);
                         }
