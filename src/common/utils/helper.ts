@@ -1,3 +1,5 @@
+import { IUser } from '../interface';
+
 const dateFromString = async (value: string) => {
         const date = new Date(value);
 
@@ -35,9 +37,33 @@ const sanitizeRequestBody = (data: Record<string, unknown>) => {
         return sanitize;
 };
 
+const toJSON = (obj: IUser, fields?: string[]): Partial<IUser> => {
+        const user = JSON.parse(JSON.stringify(obj));
+
+        if (fields && fields.length === 0) {
+                return user;
+        }
+
+        const results = { ...user };
+
+        if (fields && fields.length > 0) {
+                for (const field of fields) {
+                        if (field in results) {
+                                delete results[field as keyof IUser];
+                        }
+                }
+                return results;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { refreshToken, loginRetries, lastLogin, password, updatedAt, ...rest } = user;
+
+        return rest;
+};
+
 const oneHour = 60 * 60 * 1000;
 const fiveMinutes = 5 * 60 * 1000;
 const fifteenMinutes = 15 * 60 * 1000;
 const twentyFourHours = 24 * 60 * 60 * 1000;
 
-export { oneHour, fiveMinutes, fifteenMinutes, twentyFourHours, dateFromString, sanitizeRequestBody };
+export { oneHour, fiveMinutes, fifteenMinutes, twentyFourHours, dateFromString, sanitizeRequestBody, toJSON };
