@@ -195,6 +195,43 @@ export const redis = {
                 } catch (error) {
                         logger.error('Error clearing cache:', error);
                 }
+        },
+
+        /**
+         * Add members to a set
+         */
+        async sadd(key: string, ...members: string[]): Promise<void> {
+                if (!cacheClient) return;
+                try {
+                        await cacheClient.sadd(key, ...members);
+                } catch (error) {
+                        logger.error(`Error adding to set ${key}:`, error);
+                }
+        },
+
+        /**
+         * Remove members from a set
+         */
+        async srem(key: string, ...members: string[]): Promise<void> {
+                if (!cacheClient) return;
+                try {
+                        await cacheClient.srem(key, ...members);
+                } catch (error) {
+                        logger.error(`Error removing from set ${key}:`, error);
+                }
+        },
+
+        /**
+         * Get all members of a set
+         */
+        async smembers(key: string): Promise<string[]> {
+                if (!cacheClient) return [];
+                try {
+                        return await cacheClient.smembers(key);
+                } catch (error) {
+                        logger.error(`Error getting members of set ${key}:`, error);
+                        return [];
+                }
         }
 };
 
