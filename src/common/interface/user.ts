@@ -14,6 +14,7 @@ export interface IUser {
         ipAddress: string;
         isDeleted: boolean;
         isVerified: boolean;
+        tokenVersion: number;
         isSuspended: boolean;
         loginAttempts: number;
         lockoutUntil: Date | null;
