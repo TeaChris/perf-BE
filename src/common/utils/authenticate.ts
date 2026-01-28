@@ -21,14 +21,15 @@ export const authenticate = async ({
         perfRefreshToken?: string;
 }): Promise<AuthenticateResult> => {
         const verifyAndFetchUser = async (userId: string): Promise<HydratedDocument<IUser, UserMethods>> => {
-                // Try to get user from cache first
-                const cachedUser = await redis.get<HydratedDocument<IUser, UserMethods>>(`user:${userId}`);
+                // 1) Try to get user from cache (plain JSON)
+                const cachedUser = await redis.get<IUser>(`user:${userId}`);
 
                 let user: HydratedDocument<IUser, UserMethods>;
                 if (cachedUser) {
-                        user = cachedUser;
+                        // Rehydrate the plain object into a Mongoose document
+                        user = User.hydrate(cachedUser) as HydratedDocument<IUser, UserMethods>;
                 } else {
-                        // Fetch from database if not in cache
+                        // 2) Fetch from database if not in cache
                         user = (await User.findById(userId).select(
                                 '+isSuspended +isVerified'
                         )) as unknown as HydratedDocument<IUser, UserMethods>;
@@ -37,7 +38,7 @@ export const authenticate = async ({
                                 throw new AppError('Authentication failed', 401);
                         }
 
-                        // Cache user data (without sensitive fields)
+                        // 3) Cache plain JSON data (without methods or internal ORM state)
                         const userToCache = toJSON(user, ['password', '__v']);
                         await redis.set(`user:${userId}`, userToCache, ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS);
                 }
@@ -56,10 +57,7 @@ export const authenticate = async ({
 
         const revokeAllUserSessions = async (userId: string) => {
                 logger.warn(`SECURITY: Revoking all sessions for user ${userId} due to suspected refresh token reuse`);
-                // Find all keys in redis for this user's refresh tokens and delete them
-                // This assumes we stored them as refresh:jti -> userId
-                // A better way would be user:userId:refresh -> set(jti)
-                // For now, we'll implement a simple version or log it
+                // Implementation for revocation logic would go here (e.g., clearing all user-related refresh JTI tags)
         };
 
         // helper function to handle refresh token rotation
