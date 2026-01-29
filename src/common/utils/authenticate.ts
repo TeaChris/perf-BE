@@ -3,10 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
 import { HydratedDocument, Require_id } from 'mongoose';
 
-import { User } from '@/model';
+import { User } from '../../model';
 import AppError from './app.error';
-import { ENVIRONMENT, redis } from '@/config';
-import { logger, IUser, toJSON, UserMethods } from '@/common';
+import { redis, ENVIRONMENT } from '../../config';
+import { IUser, UserMethods, toJSON, logger } from '../../common';
 
 type AuthenticateResult = {
         currentUser: Require_id<IUser>;
