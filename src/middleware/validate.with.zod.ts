@@ -2,9 +2,9 @@ import * as z from 'zod';
 import { NextFunction, Request, Response } from 'express';
 
 import { catchAsync } from './catch.async';
-import { sanitizeRequestBody } from '@/common';
-import AppError from '@/common/utils/app.error';
-import { mainSchema, partialMainSchema } from '@/schema';
+import { sanitizeRequestBody } from '../common';
+import AppError from '../common/utils/app.error';
+import { mainSchema, partialMainSchema } from '../schema';
 
 type MyDataShape = z.infer<typeof mainSchema>;
 
