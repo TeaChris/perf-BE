@@ -2,9 +2,8 @@ import mongoose, { HydratedDocument, Model } from 'mongoose';
 import * as argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 
-import { IUser, UserMethods } from '@/common';
-import { Role } from '@/common';
-import { ENVIRONMENT } from '@/config';
+import { ENVIRONMENT } from '../config';
+import { Role, IUser, UserMethods } from '../common';
 
 type UserModel = Model<IUser, unknown, UserMethods>;
 
