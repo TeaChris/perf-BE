@@ -2,6 +2,7 @@ import { Model } from 'mongoose';
 import type { SignOptions } from 'jsonwebtoken';
 
 import { Role } from '../constant';
+export { Role };
 
 export interface IUser {
         role: Role;
