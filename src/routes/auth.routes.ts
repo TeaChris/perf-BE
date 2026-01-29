@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { signUp, signIn, signOut } from '@/controller';
-import { registerSchema, loginSchema } from '@/schema';
-import { validateDataWithZod, protect } from '@/middleware';
+
+import { signUp, signIn, signOut } from '../controller';
+import { registerSchema, loginSchema } from '../schema';
+import { validateDataWithZod, protect } from '../middleware';
 
 const router = Router();
 
