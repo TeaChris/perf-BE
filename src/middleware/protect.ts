@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 
-import { ENVIRONMENT } from '@/config';
+import { ENVIRONMENT } from '../config';
 import { catchAsync } from './catch.async';
-import AppError from '@/common/utils/app.error';
-import { authenticate, fifteenMinutes, setCookie } from '@/common';
+import AppError from '../common/utils/app.error';
+import { authenticate, fifteenMinutes, setCookie } from '../common';
 
 export const protect = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
         const { perfAccessToken, perfRefreshToken } = req.cookies;
