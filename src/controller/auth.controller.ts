@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Request, Response } from 'express';
 
-import { User } from '@/model';
-import { catchAsync } from '@/middleware';
-import { ENVIRONMENT, redis } from '@/config';
-import AppError from '@/common/utils/app.error';
-import { RegisterInput, LoginInput } from '@/schema';
-import { fifteenMinutes, setCookie, toJSON, logger, IUser } from '@/common';
+import { User } from '../model';
+import { catchAsync } from '../middleware';
+import { redis, ENVIRONMENT } from '../config';
+import AppError from '../common/utils/app.error';
+import { RegisterInput, LoginInput } from '../schema';
+import { fifteenMinutes, setCookie, toJSON, logger } from '../common';
 
 /**
  * @desc    Register a new user
