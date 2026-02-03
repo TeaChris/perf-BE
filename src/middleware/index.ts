@@ -4,3 +4,4 @@ export * from './catch.async';
 export * from './timeout';
 export * from './protect';
 export * from './csrf';
+export * from './sanitizer';
