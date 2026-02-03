@@ -27,7 +27,7 @@ const baseMainSchema = z.object({
                 .max(6, 'code must be at most 6 characters long'),
         token: z.string(),
         userId: z.string().regex(/^[0-9a-fA-F]{24}$/, { message: 'Invalid user ID' }),
-        isTermsAndConditionAcepted: z.boolean(),
+        isTermsAndConditionAccepted: z.boolean(),
         redirectUrl: z.string().url()
 });
 
