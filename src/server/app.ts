@@ -3,14 +3,12 @@ if (process.env.NODE_ENV === 'production') require('module-alias/register');
 import hpp from 'hpp';
 import cors from 'cors';
 import morgan from 'morgan';
-import xss from 'xss-clean';
 import mongoose from 'mongoose';
 // import helmetCsp from 'helmet-csp';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import helmet, { HelmetOptions } from 'helmet';
-import mongoSanitize from 'express-mongo-sanitize';
 import express, { Application, NextFunction, Request, Response } from 'express';
 
 import { errorHandler } from '@/controller';
@@ -21,7 +19,8 @@ import {
         csrfProtection,
         timeoutMiddleware,
         validateDataWithZod,
-        correlationIdMiddleware
+        correlationIdMiddleware,
+        customSanitizer
 } from '@/middleware';
 
 import { authRouter } from '@/routes';
@@ -98,6 +97,7 @@ app.use(
                         'X-Requested-With',
                         'x-xsrf-token',
                         'x-csrf-token',
+                        'x-referrer',
                         'Accept',
                         'Origin'
                 ],
@@ -157,10 +157,9 @@ app.use((req, res, next) => {
         next();
 });
 
-// data sanitization
-app.use(mongoSanitize());
-// data sanitization
-app.use(xss());
+// in-place sanitization for Express 5 compatibility (replaces mongoSanitize and xss)
+app.use(customSanitizer);
+
 // prevent parameter pollution
 app.use(
         hpp({
@@ -189,7 +188,6 @@ app.use(timeoutMiddleware);
  */
 app.use(setCsrfToken);
 app.use(csrfProtection);
-app.use(validateDataWithZod());
 
 app.get('/api/v1/health', async (req: Request, res: Response) => {
         const mongoStatus = mongoose.connection.readyState === 1 ? 'up' : 'down';
