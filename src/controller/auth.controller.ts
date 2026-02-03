@@ -150,3 +150,23 @@ export const signOut = catchAsync(async (req: Request, res: Response) => {
                 message: 'Logged out successfully'
         });
 });
+
+/**
+ * @desc    Get current user profile
+ * @route   GET /api/v1/auth/me
+ * @access  Private
+ */
+export const getMe = catchAsync(async (req: Request, res: Response) => {
+        // req.user is populated by the protect middleware
+        if (!req.user) {
+                throw new AppError('Authenticated user not found', 404);
+        }
+        const user = toJSON(req.user, ['password', '__v']);
+
+        res.status(200).json({
+                status: 'success',
+                data: {
+                        user
+                }
+        });
+});
