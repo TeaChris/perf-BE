@@ -63,18 +63,6 @@ app.use(cookieParser());
 app.use(compression());
 
 /**
- * rate limiter
- */
-
-app.use(
-        rateLimit({
-                windowMs: fifteenMinutes,
-                max: 100,
-                message: 'Too many requests from this IP, please try again later!'
-        })
-);
-
-/**
  * middleware to allow cors
  */
 
@@ -108,6 +96,18 @@ app.use(
 );
 
 /**
+ * rate limiter
+ */
+
+app.use(
+        rateLimit({
+                windowMs: fifteenMinutes,
+                max: ENVIRONMENT.APP.ENV === 'development' ? 1000 : 100,
+                message: 'Too many requests from this IP, please try again later!'
+        })
+);
+
+/**
  * use Helmet middleware for security headers
  */
 
@@ -124,7 +124,7 @@ app.use(
                                 styleSrc: ["'self'", "'unsafe-inline'"],
                                 scriptSrc: ["'self'", "'unsafe-inline'"],
                                 fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
-                                connectSrc: ["'self'", 'https://api.mapbox.com'],
+                                connectSrc: ["'self'", 'https://api.mapbox.com', ENVIRONMENT.FRONTEND_URL],
                                 frameSrc: ["'self'"],
                                 mediaSrc: ["'self'"],
                                 childSrc: ["'self'"],
