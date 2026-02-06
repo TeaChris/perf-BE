@@ -122,7 +122,8 @@ export const signIn = catchAsync(async (req: Request, res: Response) => {
                 status: 'success',
                 message: 'Logged in successfully',
                 data: {
-                        user: userToCache
+                        user: userToCache,
+                        accessToken
                 }
         });
 });
