@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import { User } from '../model';
 import { catchAsync } from '../middleware';
 import { redis, ENVIRONMENT } from '../config';
+import { emailService } from '@/services/email.service';
 import AppError from '../common/utils/app.error';
 import { RegisterInput, LoginInput } from '../schema';
 import { fifteenMinutes, setCookie, toJSON, logger } from '../common';
@@ -22,45 +23,52 @@ export const signUp = catchAsync(async (req: Request, res: Response) => {
                 throw new AppError('User with this email or username already exists', 400);
         }
 
-        // 2) Create user
+        // 2) Generate verification token
+        const verificationToken = uuidv4();
+
+        // 3) Create user
         const user = await User.create({
                 username,
                 email,
                 password,
                 tokenVersion: 0,
-                isTermsAndConditionAccepted
+                isTermsAndConditionAccepted,
+                verificationToken,
+                isVerified: false
         });
 
-        // 3) Generate JTI and tokens
-        const jti = uuidv4();
-        const accessToken = user.generateAccessToken({}, jti);
-        const refreshToken = user.generateRefreshToken({}, jti);
-
-        // 4) Whitelist JTI and track per user
-        // We hash context for consistency with authenticate.ts
-        const { createHash } = await import('crypto');
-        const contextHash = createHash('sha256').update(`${req.ip}-${req.headers['user-agent']}`).digest('hex');
-
-        const cacheData = { userId: user._id.toString(), context: contextHash };
-        await redis.set(`refresh:${jti}`, cacheData, ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS);
-        await redis.sadd(`user:${user._id}:refresh`, jti);
-
-        // 5) Set cookies
-        setCookie(res, 'perfAccessToken', accessToken, { maxAge: fifteenMinutes });
-        setCookie(res, 'perfRefreshToken', refreshToken, {
-                maxAge: ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS * 1000
-        });
-
-        // 6) Cache user for fast retrieval
-        const userToCache = toJSON(user, ['password', '__v']);
-        await redis.set(`user:${user._id}`, userToCache, ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS);
+        // 4) Send verification email
+        await emailService.sendVerificationEmail(email, username, verificationToken);
 
         res.status(201).json({
                 status: 'success',
-                message: 'User registered successfully',
-                data: {
-                        user: userToCache
-                }
+                message: 'Registration successful! Please check your email to verify your account.'
+        });
+});
+
+/**
+ * @desc    Verify email address
+ * @route   GET /api/v1/auth/verify-email/:token
+ * @access  Public
+ */
+export const verifyEmail = catchAsync(async (req: Request, res: Response) => {
+        const { token } = req.params;
+
+        // 1) Find user with this token
+        const user = await User.findOne({ verificationToken: token }).select('+verificationToken');
+
+        if (!user) {
+                throw new AppError('Invalid or expired verification token', 400);
+        }
+
+        // 2) Update user
+        user.isVerified = true;
+        user.verificationToken = null;
+        await user.save();
+
+        res.status(200).json({
+                status: 'success',
+                message: 'Email verified successfully! You can now log in.'
         });
 });
 
@@ -81,6 +89,11 @@ export const signIn = catchAsync(async (req: Request, res: Response) => {
         // Check if account is suspended
         if (user.isSuspended) {
                 throw new AppError('Your account is currently suspended', 401);
+        }
+
+        // Check if account is verified
+        if (!user.isVerified) {
+                throw new AppError('Please verify your email to log in', 401);
         }
 
         // 2) Generate JTI and tokens
