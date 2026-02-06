@@ -1,6 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { v4 as uuidv4 } from 'uuid';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { HydratedDocument, Require_id } from 'mongoose';
 
 import { User } from '../../model';
@@ -138,7 +137,7 @@ export const authenticate = async ({
                         await redis.srem(`user:${decoded.id}:refresh`, decoded.jti!);
 
                         // Generate new JTI and tokens
-                        const newJti = uuidv4();
+                        const newJti = randomUUID();
                         const newAccessToken = currentUser.generateAccessToken({}, newJti);
                         const newRefreshToken = currentUser.generateRefreshToken({}, newJti);
 
