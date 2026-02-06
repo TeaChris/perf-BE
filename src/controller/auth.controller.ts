@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID, createHash } from 'crypto';
 import { Request, Response } from 'express';
 
 import { User } from '../model';
@@ -24,7 +24,7 @@ export const signUp = catchAsync(async (req: Request, res: Response) => {
         }
 
         // 2) Generate verification token
-        const verificationToken = uuidv4();
+        const verificationToken = randomUUID();
 
         // 3) Create user
         const user = await User.create({
@@ -97,12 +97,11 @@ export const signIn = catchAsync(async (req: Request, res: Response) => {
         }
 
         // 2) Generate JTI and tokens
-        const jti = uuidv4();
+        const jti = randomUUID();
         const accessToken = user.generateAccessToken({}, jti);
         const refreshToken = user.generateRefreshToken({}, jti);
 
         // 3) Whitelist JTI and track per user
-        const { createHash } = await import('crypto');
         const contextHash = createHash('sha256').update(`${req.ip}-${req.headers['user-agent']}`).digest('hex');
 
         const cacheData = { userId: user._id.toString(), context: contextHash };
