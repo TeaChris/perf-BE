@@ -70,6 +70,7 @@ const setCookie = (res: Response, name: string, value: string, options: CookieOp
                 path: '/',
                 sameSite: ENVIRONMENT.APP.ENV === 'production' ? 'none' : 'lax',
                 partitioned: ENVIRONMENT.APP.ENV === 'production',
+                domain: ENVIRONMENT.COOKIE.DOMAIN,
                 ...options
         });
 };
