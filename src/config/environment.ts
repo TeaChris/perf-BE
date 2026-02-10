@@ -17,7 +17,8 @@ const validateEnvironment = () => {
                 'FRONTEND_URL',
                 'API_KEY',
                 'FROM_EMAIL',
-                'CLIENT'
+                'CLIENT',
+                'COOKIE_DOMAIN'
         ];
 
         const missingVars = requiredVars.filter(varName => !process.env[varName]);
@@ -80,5 +81,8 @@ export const ENVIRONMENT: IEnvironment = {
         EMAIL: {
                 API_KEY: process.env.API_KEY!,
                 FROM_EMAIL: process.env.FROM_EMAIL!
+        },
+        COOKIE: {
+                DOMAIN: process.env.COOKIE_DOMAIN!
         }
 };
