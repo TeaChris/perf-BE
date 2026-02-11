@@ -76,11 +76,10 @@ const flashSaleSchema = new mongoose.Schema<IFlashSale, FlashSaleModel>(
 );
 
 // Validation: endTime must be after startTime
-flashSaleSchema.pre('save', function (next) {
+flashSaleSchema.pre('save', async function () {
         if (this.endTime <= this.startTime) {
-                next(new Error('End time must be after start time'));
+                throw new Error('End time must be after start time');
         }
-        next();
 });
 
 // Index for querying active sales
