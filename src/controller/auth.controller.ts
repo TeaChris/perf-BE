@@ -96,25 +96,38 @@ export const signIn = catchAsync(async (req: Request, res: Response) => {
                 throw new AppError('Please verify your email to log in', 401);
         }
 
-        // 2) Generate JTI and tokens
+        // 2) Revoke all existing sessions (single-device enforcement)
+        const userRefreshKey = `user:${user._id}:refresh`;
+        const activeJtis = await redis.smembers(userRefreshKey);
+
+        if (activeJtis.length > 0) {
+                logger.info(
+                        `Revoking ${activeJtis.length} existing session(s) for user ${user._id} (single-device enforcement)`
+                );
+                const keysToRevoke = activeJtis.map(jti => `refresh:${jti}`);
+                await Promise.all(keysToRevoke.map(key => redis.del(key)));
+                await redis.del(userRefreshKey);
+        }
+
+        // 3) Generate JTI and tokens
         const jti = randomUUID();
         const accessToken = user.generateAccessToken({}, jti);
         const refreshToken = user.generateRefreshToken({}, jti);
 
-        // 3) Whitelist JTI and track per user
+        // 4) Whitelist JTI and track per user
         const contextHash = createHash('sha256').update(`${req.ip}-${req.headers['user-agent']}`).digest('hex');
 
         const cacheData = { userId: user._id.toString(), context: contextHash };
         await redis.set(`refresh:${jti}`, cacheData, ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS);
         await redis.sadd(`user:${user._id}:refresh`, jti);
 
-        // 4) Set cookies
+        // 5) Set cookies
         setCookie(res, 'perfAccessToken', accessToken, { maxAge: fifteenMinutes });
         setCookie(res, 'perfRefreshToken', refreshToken, {
                 maxAge: ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS * 1000
         });
 
-        // 5) Update user cache to ensure session sync
+        // 6) Update user cache to ensure session sync
         const userToCache = toJSON(user, ['password', '__v']);
         await redis.set(`user:${user._id}`, userToCache, ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS);
 
