@@ -1,10 +1,11 @@
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import type { SignOptions } from 'jsonwebtoken';
 
 import { Role } from '../constant';
 export { Role };
 
 export interface IUser {
+        _id: Types.ObjectId;
         role: Role;
         email: string;
         lastLogin: Date;
