@@ -8,10 +8,10 @@ const router = Router();
 // All routes are admin-only
 router.use(protect, adminOnly);
 
-router.get('/dashboard/stats', getDashboardStats);
 router.get('/users', getAllUsers);
 router.patch('/users/:id/suspend', suspendUser);
-router.patch('/users/:id/unsuspend', unsuspendUser);
 router.patch('/users/:id/role', updateUserRole);
+router.get('/dashboard/stats', getDashboardStats);
+router.patch('/users/:id/unsuspend', unsuspendUser);
 
 export { router as adminRouter };
