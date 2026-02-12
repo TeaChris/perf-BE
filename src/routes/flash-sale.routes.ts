@@ -3,12 +3,12 @@ import { Router } from 'express';
 import { protect, adminOnly } from '../middleware';
 import {
         getFlashSales,
-        getActiveFlashSales,
         createFlashSale,
         updateFlashSale,
+        deleteFlashSale,
         activateFlashSale,
         deactivateFlashSale,
-        deleteFlashSale
+        getActiveFlashSales
 } from '../controller';
 
 const router = Router();
