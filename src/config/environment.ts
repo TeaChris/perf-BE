@@ -6,19 +6,19 @@ import { IEnvironment } from '@/common';
 // validation
 const validateEnvironment = () => {
         const requiredVars = [
-                'DATABASE_URL',
+                'REFRESH_JWT_EXPIRES_IN_SECONDS',
+                'REFRESH_JWT_EXPIRES_IN',
+                'ACCESS_JWT_EXPIRES_IN',
                 'CACHE_REDIS_URL',
                 'QUEUE_REDIS_URL',
                 'REFRESH_JWT_KEY',
                 'ACCESS_JWT_KEY',
-                'REFRESH_JWT_EXPIRES_IN_SECONDS',
-                'REFRESH_JWT_EXPIRES_IN',
-                'ACCESS_JWT_EXPIRES_IN',
+                'COOKIE_DOMAIN',
+                'DATABASE_URL',
                 'FRONTEND_URL',
-                'API_KEY',
                 'FROM_EMAIL',
-                'CLIENT',
-                'COOKIE_DOMAIN'
+                'API_KEY',
+                'CLIENT'
         ];
 
         const missingVars = requiredVars.filter(varName => !process.env[varName]);
