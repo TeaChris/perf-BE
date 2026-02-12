@@ -209,13 +209,13 @@ const getJobStatus = async (queueName: string, jobId: string): Promise<JobStatus
 
                 return {
                         id: job.id,
-                        data: job.data,
                         status: state,
+                        data: job.data,
                         timestamp: job.timestamp,
-                        processedOn: job.processedOn,
                         finishedOn: job.finishedOn,
-                        attemptsMade: job.attemptsMade,
+                        processedOn: job.processedOn,
                         returnvalue: job.returnvalue,
+                        attemptsMade: job.attemptsMade,
                         failedReason: job.failedReason
                 };
         } catch (error) {
