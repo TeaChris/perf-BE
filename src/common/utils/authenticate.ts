@@ -147,11 +147,11 @@ export const authenticate = async ({
                         await redis.sadd(`user:${decoded.id}:refresh`, newJti);
 
                         return {
-                                currentUser: currentUser as any as Require_id<IUser>,
+                                currentUser: currentUser as unknown as Require_id<IUser>,
                                 accessToken: newAccessToken,
                                 refreshToken: newRefreshToken
                         };
-                } catch (err: any) {
+                } catch (err: unknown) {
                         if (err instanceof AppError) throw err;
                         logger.error('Refresh token rotation failed', { err });
                         throw new AppError('Session expired. Please log in again', 401);
@@ -183,12 +183,12 @@ export const authenticate = async ({
                         const currentUser = await verifyAndFetchUser(decoded.id, decoded.version);
 
                         return {
-                                currentUser: currentUser as any as Require_id<IUser>,
+                                currentUser: currentUser as unknown as Require_id<IUser>,
                                 accessToken: perfAccessToken,
                                 refreshToken: perfRefreshToken
                         };
-                } catch (err: any) {
-                        if (err.name !== 'TokenExpiredError') {
+                } catch (err: unknown) {
+                        if (err instanceof Error && err.name !== 'TokenExpiredError') {
                                 throw new AppError('Invalid session', 401);
                         }
                 }
