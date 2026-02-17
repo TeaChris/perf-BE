@@ -8,14 +8,22 @@ import {
         deleteFlashSale,
         activateFlashSale,
         deactivateFlashSale,
-        getActiveFlashSales
+        getActiveFlashSales,
+        purchaseProduct,
+        getSaleLeaderboard,
+        getProductFlashSaleStatus
 } from '../controller';
 
 const router = Router();
 
+// Public routes (general)
+router.get('/product/:productId', getProductFlashSaleStatus);
+
 // Public routes (authenticated users)
 router.get('/', protect, getFlashSales);
 router.get('/active', protect, getActiveFlashSales);
+router.post('/:id/purchase', protect, purchaseProduct);
+router.get('/:id/leaderboard', protect, getSaleLeaderboard);
 
 // Admin-only routes
 router.post('/', protect, adminOnly, createFlashSale);
