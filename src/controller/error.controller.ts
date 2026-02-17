@@ -18,16 +18,19 @@ const handleMongooseValidationError = (err: MongooseError.ValidationError): AppE
         return new AppError(message, 400);
 };
 
-const handleMongooseDuplicateFieldsError = (err: MongooseError & { keyValue?: any; code?: number }): AppError => {
+const handleMongooseDuplicateFieldsError = (
+        err: MongooseError & { keyValue?: Record<string, unknown>; code?: number }
+): AppError => {
         logger.error('Unhandled error:', err);
 
-        const field = Object.keys(err.keyValue || {})[0]
+        const keyValue = err.keyValue || {};
+        const field = Object.keys(keyValue)[0]
                 .replace(/([a-z])([A-Z])/g, '$1 $2')
                 .split(/(?=[A-Z])/)
                 .map((word, index) => (index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word.toLowerCase()))
                 .join('');
 
-        const value = err.keyValue ? err.keyValue[field] : 'unknown';
+        const value = keyValue[field] || 'unknown';
         const message = `${field.charAt(0).toUpperCase() + field.slice(1)} already exists with value ${value}`;
         return new AppError(message, 409);
 };
@@ -89,7 +92,11 @@ const errorHandler = (
                 if ('timeout' in err && err.timeout) error = handleTimeoutError();
                 if (err.name === 'JsonWebTokenError') error = handleJWTError();
                 if (err.name === 'TokenExpiredError') error = handleJWTExpiredError();
-                if ((err as any).code === 11000) error = handleMongooseDuplicateFieldsError(err as any);
+                if ('code' in err && err.code === 11000) {
+                        error = handleMongooseDuplicateFieldsError(
+                                err as MongooseError & { keyValue?: Record<string, unknown>; code?: number }
+                        );
+                }
 
                 sendErrorProd(error, res);
         }
