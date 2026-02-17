@@ -47,7 +47,7 @@ const setCsrfToken = (req: Request, res: Response, next: NextFunction) => {
                 const csrfToken = crypto.randomBytes(32).toString('hex');
 
                 res.cookie('csrfToken', csrfToken, {
-                        httpOnly: true,
+                        httpOnly: false,
                         secure: ENVIRONMENT.APP.ENV === 'production',
                         sameSite: ENVIRONMENT.APP.ENV === 'production' ? 'none' : 'lax',
                         maxAge: twentyFourHours,
