@@ -1,4 +1,5 @@
 declare module 'xss-clean' {
-        const xss: any;
+        import { RequestHandler } from 'express';
+        const xss: () => RequestHandler;
         export default xss;
 }
