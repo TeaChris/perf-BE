@@ -19,6 +19,15 @@ type TokenPayload = {
         jti?: string;
 };
 
+type StoredRefreshData = {
+        userId: string;
+        context: string;
+        grace?: boolean;
+};
+
+/** Grace period in seconds — old JTIs stay valid this long after rotation */
+const ROTATION_GRACE_SECONDS = 10;
+
 export const authenticate = async ({
         perfAccessToken,
         perfRefreshToken,
@@ -114,9 +123,7 @@ export const authenticate = async ({
                         const currentUser = await verifyAndFetchUser(decoded.id, decoded.version);
 
                         // 1) Verify if this JTI is in the whitelist and check context
-                        const storedData = await redis.get<{ userId: string; context: string }>(
-                                `refresh:${decoded.jti}`
-                        );
+                        const storedData = await redis.get<StoredRefreshData>(`refresh:${decoded.jti}`);
 
                         if (!storedData) {
                                 await revokeAllUserSessions(decoded.id);
@@ -132,8 +139,20 @@ export const authenticate = async ({
                                 throw new AppError('Session expired. Please log in again', 401);
                         }
 
-                        // 2) Rotate the token
-                        await redis.del(`refresh:${decoded.jti}`);
+                        // 2) If this JTI is in grace period (already rotated by a parallel request),
+                        //    return the user without rotating again — the new tokens from the
+                        //    first rotation will be set via cookies on that response.
+                        if (storedData.grace) {
+                                return {
+                                        currentUser: currentUser as unknown as Require_id<IUser>,
+                                        accessToken: perfAccessToken || '',
+                                        refreshToken: undefined
+                                };
+                        }
+
+                        // 3) Rotate the token — keep old JTI alive briefly for parallel requests
+                        const graceData: StoredRefreshData = { ...storedData, grace: true };
+                        await redis.set(`refresh:${decoded.jti}`, graceData, ROTATION_GRACE_SECONDS);
                         await redis.srem(`user:${decoded.id}:refresh`, decoded.jti!);
 
                         // Generate new JTI and tokens
@@ -142,7 +161,7 @@ export const authenticate = async ({
                         const newRefreshToken = currentUser.generateRefreshToken({}, newJti);
 
                         // Whitelist new JTI with context and userId
-                        const cacheData = { userId: decoded.id, context: getContextHash() };
+                        const cacheData: StoredRefreshData = { userId: decoded.id, context: getContextHash() };
                         await redis.set(`refresh:${newJti}`, cacheData, ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS);
                         await redis.sadd(`user:${decoded.id}:refresh`, newJti);
 
