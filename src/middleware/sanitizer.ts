@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 /**
  * Sanitizes an object in-place to prevent NoSQL injection and XSS
  */
-const sanitizeObject = (obj: any): any => {
+const sanitizeObject = (obj: Record<string, unknown>): Record<string, unknown> => {
         if (obj instanceof Object) {
                 for (const key in obj) {
                         if (Object.prototype.hasOwnProperty.call(obj, key)) {
@@ -25,7 +25,7 @@ const sanitizeObject = (obj: any): any => {
                                                 .replace(/'/g, '&#x27;')
                                                 .replace(/\//g, '&#x2F;');
                                 } else if (typeof value === 'object' && value !== null) {
-                                        sanitizeObject(value);
+                                        sanitizeObject(value as Record<string, unknown>);
                                 }
                         }
                 }
