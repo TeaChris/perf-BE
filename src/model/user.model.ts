@@ -96,7 +96,7 @@ const userSchema = new mongoose.Schema<IUser, UserModel, UserMethods>(
 );
 
 // pick users who are not deleted/suspended
-userSchema.pre(/^find/, function (this: mongoose.Query<any, IUser>) {
+userSchema.pre(/^find/, function (this: mongoose.Query<unknown, IUser>) {
         const query = this.getQuery();
         if (Object.keys(query).includes('isDeleted')) {
                 this.where({ isSuspended: { $ne: true } });
@@ -107,7 +107,7 @@ userSchema.pre(/^find/, function (this: mongoose.Query<any, IUser>) {
 });
 
 // verify user password
-userSchema.method('verifyPassword', async function (this: HydratedDocument<IUser>, password: string) {
+userSchema.method('verifyPassword', async function (this: HydratedDocument<IUser, UserMethods>, password: string) {
         if (!this.password) return false;
 
         const isValid = await argon2.verify(this.password, password);
@@ -115,7 +115,7 @@ userSchema.method('verifyPassword', async function (this: HydratedDocument<IUser
 });
 
 // hash password before saving to DB
-userSchema.pre('save', async function (this: HydratedDocument<IUser>) {
+userSchema.pre('save', async function (this: HydratedDocument<IUser, UserMethods>) {
         if (!this.isModified('password')) return;
         this.password = await argon2.hash(this.password);
 });
@@ -123,9 +123,9 @@ userSchema.pre('save', async function (this: HydratedDocument<IUser>) {
 // generate access token
 userSchema.method(
         'generateAccessToken',
-        function (this: HydratedDocument<IUser>, options?: jwt.SignOptions, jti?: string) {
+        function (this: HydratedDocument<IUser, UserMethods>, options?: jwt.SignOptions, jti?: string) {
                 const signOptions: jwt.SignOptions = {
-                        expiresIn: ENVIRONMENT.JWT_EXPIRES_IN.ACCESS as any,
+                        expiresIn: ENVIRONMENT.JWT_EXPIRES_IN.ACCESS as jwt.SignOptions['expiresIn'],
                         issuer: ENVIRONMENT.APP.NAME,
                         audience: ENVIRONMENT.APP.CLIENT,
                         ...options,
@@ -138,9 +138,9 @@ userSchema.method(
 // generate refresh token
 userSchema.method(
         'generateRefreshToken',
-        function (this: HydratedDocument<IUser>, options?: jwt.SignOptions, jti?: string) {
+        function (this: HydratedDocument<IUser, UserMethods>, options?: jwt.SignOptions, jti?: string) {
                 const signOptions: jwt.SignOptions = {
-                        expiresIn: ENVIRONMENT.JWT_EXPIRES_IN.REFRESH as any,
+                        expiresIn: ENVIRONMENT.JWT_EXPIRES_IN.REFRESH as jwt.SignOptions['expiresIn'],
                         issuer: ENVIRONMENT.APP.NAME,
                         audience: ENVIRONMENT.APP.CLIENT,
                         ...options,
