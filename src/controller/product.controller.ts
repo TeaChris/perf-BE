@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 
 import { Product } from '../model';
 import { catchAsync } from '../middleware';
 import AppError from '../common/utils/app.error';
 import { redis } from '../config';
+import { IProduct } from '../common';
 
 /**
  * @desc    Get all products with pagination and filtering
@@ -18,9 +20,9 @@ export const getProducts = catchAsync(async (req: Request, res: Response) => {
         const { category, search, isActive } = req.query;
 
         // Build query
-        const query: any = {};
-        if (category) query.category = category;
-        if (search) query.$text = { $search: search as string };
+        const query: Partial<IProduct> & Record<string, unknown> = {};
+        if (category) query.category = category as string;
+        if (search) query['$text'] = { $search: search as string };
         if (isActive !== undefined) query.isActive = isActive === 'true';
 
         const [products, total] = await Promise.all([
