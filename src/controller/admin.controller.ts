@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 
 import { User, Product, FlashSale } from '../model';
-import { catchAsync } from '../middleware';
 import AppError from '../common/utils/app.error';
-import { Role } from '../common';
+import { catchAsync } from '../middleware';
+import { Role, IUser } from '../common';
 
 /**
  * @desc    Get dashboard statistics
@@ -49,12 +50,12 @@ export const getAllUsers = catchAsync(async (req: Request, res: Response) => {
 
         const { role, search } = req.query;
 
-        const query: any = {};
-        if (role) query.role = role;
+        const query: Partial<IUser> & Record<string, unknown> = {};
+        if (role) query.role = role as Role;
         if (search) {
-                query.$or = [
-                        { username: { $regex: search, $options: 'i' } },
-                        { email: { $regex: search, $options: 'i' } }
+                query['$or'] = [
+                        { username: { $regex: search as string, $options: 'i' } },
+                        { email: { $regex: search as string, $options: 'i' } }
                 ];
         }
 
