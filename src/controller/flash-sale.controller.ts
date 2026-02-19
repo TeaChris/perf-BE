@@ -8,11 +8,33 @@ import { IFlashSale } from '../common';
 import { io } from '../server';
 
 /**
+ * @desc    Utility to synchronize flash sale statuses based on current time
+ */
+const syncSaleStatuses = async () => {
+        const now = new Date();
+
+        // Find scheduled or active sales that have already ended
+        const expiredSales = await FlashSale.find({
+                status: { $in: ['scheduled', 'active'] },
+                endTime: { $lt: now }
+        });
+
+        if (expiredSales.length > 0) {
+                const ids = expiredSales.map(sale => sale._id);
+                await FlashSale.updateMany({ _id: { $in: ids } }, { $set: { status: 'ended', isActive: false } });
+                console.log(`[FlashSaleSync] Synchronized ${expiredSales.length} sales to 'ended' status.`);
+        }
+};
+
+/**
  * @desc    Get all flash sales
  * @route   GET /api/v1/flash-sales
  * @access  Private
  */
 export const getFlashSales = catchAsync(async (req: Request, res: Response) => {
+        // Sync statuses before listing
+        await syncSaleStatuses();
+
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 10;
         const status = req.query.status as string | undefined;
