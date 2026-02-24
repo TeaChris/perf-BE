@@ -20,9 +20,22 @@ const syncSaleStatuses = async () => {
         });
 
         if (expiredSales.length > 0) {
-                const ids = expiredSales.map(sale => sale._id);
-                await FlashSale.updateMany({ _id: { $in: ids } }, { $set: { status: 'ended', isActive: false } });
-                console.log(`[FlashSaleSync] Synchronized ${expiredSales.length} sales to 'ended' status.`);
+                for (const sale of expiredSales) {
+                        // Return remaining stock to products
+                        for (const p of sale.products) {
+                                if (p.stockRemaining > 0) {
+                                        await Product.findByIdAndUpdate(p.productId, {
+                                                $inc: { stock: p.stockRemaining }
+                                        });
+                                }
+                        }
+                        sale.status = 'ended';
+                        sale.isActive = false;
+                        await sale.save();
+                }
+                console.log(
+                        `[FlashSaleSync] Synchronized ${expiredSales.length} sales to 'ended' status and returned stock.`
+                );
         }
 };
 
@@ -112,7 +125,32 @@ export const createFlashSale = catchAsync(async (req: Request, res: Response) =>
                 throw new AppError('One or more products not found', 404);
         }
 
-        // Initialize stockRemaining same as stockLimit
+        // Deduct stock from products and validate availability
+        for (const p of products as FlashSaleProductInput[]) {
+                const product = await Product.findOneAndUpdate(
+                        { _id: p.productId, stock: { $gte: p.stockLimit } },
+                        { $inc: { stock: -p.stockLimit } },
+                        { new: true }
+                );
+
+                if (!product) {
+                        // Rollback already deducted stock if one fails
+                        // Note: In a production app, use MongoDB Transactions.
+                        // For simplicity here, we'll implement a basic cleanup or just throw.
+                        const successfulIds = productIds.slice(0, productIds.indexOf(p.productId));
+                        for (const sId of successfulIds) {
+                                const sProd = (products as FlashSaleProductInput[]).find(
+                                        prod => prod.productId === sId
+                                );
+                                if (sProd) {
+                                        await Product.findByIdAndUpdate(sId, { $inc: { stock: sProd.stockLimit } });
+                                }
+                        }
+                        throw new AppError(`Insufficient stock for product: ${p.productId} or product not found`, 400);
+                }
+        }
+
+        // Prepare products with initial stock
         const productsWithStock = (products as FlashSaleProductInput[]).map(p => ({
                 productId: new mongoose.Types.ObjectId(p.productId),
                 salePrice: p.salePrice,
@@ -164,13 +202,60 @@ export const updateFlashSale = catchAsync(async (req: Request, res: Response) =>
         flashSale.status = status || flashSale.status;
 
         if (products) {
-                const productsWithStock = (products as FlashSaleProductInput[]).map(p => ({
-                        productId: new mongoose.Types.ObjectId(p.productId),
-                        salePrice: p.salePrice,
-                        stockLimit: p.stockLimit,
-                        stockRemaining: p.stockLimit
-                }));
-                flashSale.products = productsWithStock as typeof flashSale.products;
+                const newProducts = products as FlashSaleProductInput[];
+
+                // Handle stock adjustments
+                for (const newP of newProducts) {
+                        const oldP = flashSale.products.find(p => p.productId.toString() === newP.productId);
+                        if (oldP) {
+                                const diff = newP.stockLimit - oldP.stockLimit;
+                                if (diff > 0) {
+                                        // Need more stock
+                                        const product = await Product.findOneAndUpdate(
+                                                { _id: newP.productId, stock: { $gte: diff } },
+                                                { $inc: { stock: -diff } }
+                                        );
+                                        if (!product)
+                                                throw new AppError(
+                                                        `Insufficient stock for product ${newP.productId}`,
+                                                        400
+                                                );
+                                } else if (diff < 0) {
+                                        // Return stock
+                                        await Product.findByIdAndUpdate(newP.productId, {
+                                                $inc: { stock: Math.abs(diff) }
+                                        });
+                                }
+                                // Adjust stockRemaining by the same diff
+                                oldP.stockRemaining = Math.max(0, oldP.stockRemaining + diff);
+                                oldP.stockLimit = newP.stockLimit;
+                                oldP.salePrice = newP.salePrice;
+                        } else {
+                                // New product added to existing sale
+                                const product = await Product.findOneAndUpdate(
+                                        { _id: newP.productId, stock: { $gte: newP.stockLimit } },
+                                        { $inc: { stock: -newP.stockLimit } }
+                                );
+                                if (!product)
+                                        throw new AppError(`Insufficient stock for product ${newP.productId}`, 400);
+
+                                flashSale.products.push({
+                                        productId: new mongoose.Types.ObjectId(newP.productId),
+                                        salePrice: newP.salePrice,
+                                        stockLimit: newP.stockLimit,
+                                        stockRemaining: newP.stockLimit
+                                } as any);
+                        }
+                }
+
+                // Check for removed products
+                const removedProducts = flashSale.products.filter(
+                        oldP => !newProducts.find(newP => newP.productId === oldP.productId.toString())
+                );
+                for (const remP of removedProducts) {
+                        await Product.findByIdAndUpdate(remP.productId, { $inc: { stock: remP.stockRemaining } });
+                        flashSale.products = flashSale.products.filter(p => p.productId !== remP.productId) as any;
+                }
         }
 
         await flashSale.save();
@@ -211,15 +296,23 @@ export const activateFlashSale = catchAsync(async (req: Request, res: Response) 
  * @access  Private (Admin only)
  */
 export const deactivateFlashSale = catchAsync(async (req: Request, res: Response) => {
-        const flashSale = await FlashSale.findByIdAndUpdate(
-                req.params.id,
-                { isActive: false, status: 'cancelled' },
-                { new: true }
-        );
+        const flashSale = await FlashSale.findById(req.params.id);
 
         if (!flashSale) {
                 throw new AppError('Flash sale not found', 404);
         }
+
+        // Return remaining stock to master record
+        for (const p of flashSale.products) {
+                if (p.stockRemaining > 0) {
+                        await Product.findByIdAndUpdate(p.productId, { $inc: { stock: p.stockRemaining } });
+                }
+                p.stockRemaining = 0;
+        }
+
+        flashSale.isActive = false;
+        flashSale.status = 'cancelled';
+        await flashSale.save();
 
         res.status(200).json({
                 status: 'success',
@@ -240,9 +333,14 @@ export const deleteFlashSale = catchAsync(async (req: Request, res: Response) =>
                 throw new AppError('Flash sale not found', 404);
         }
 
-        // Don't allow deleting active sales
-        if (flashSale.status === 'active') {
-                throw new AppError('Cannot delete active flash sale. Deactivate it first.', 400);
+        // Return remaining stock to master record if it wasn't already returned
+        // (i.e., if status is not 'ended' or 'cancelled')
+        if (flashSale.status !== 'ended' && flashSale.status !== 'cancelled') {
+                for (const p of flashSale.products) {
+                        if (p.stockRemaining > 0) {
+                                await Product.findByIdAndUpdate(p.productId, { $inc: { stock: p.stockRemaining } });
+                        }
+                }
         }
 
         await flashSale.deleteOne();
