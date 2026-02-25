@@ -1,7 +1,17 @@
 import { Queue, Worker, QueueEvents, Job } from 'bullmq';
+import Redis from 'ioredis';
 
 import { EmailJobData, JobStatus, logger } from '@/common';
 import { createRedisClient } from './redis';
+
+// Shared Redis connection for all queues and workers (lazy singleton)
+let queueConnection: Redis | null = null;
+
+const getQueueConnection = (): Redis | null => {
+        if (queueConnection) return queueConnection;
+        queueConnection = createRedisClient();
+        return queueConnection;
+};
 
 // Map to store queues by name
 const queues = new Map<string, Queue>();
@@ -18,13 +28,13 @@ const queueEvents = new Map<string, QueueEvents>();
  * @returns The queue instance or null if Redis is not configured
  */
 const getQueue = (queueName: string): Queue | null => {
-        // check if queue exists
-        if (!queues.has(queueName)) {
+        // Return existing queue if already created
+        if (queues.has(queueName)) {
                 return queues.get(queueName) || null;
         }
 
-        // get redis connection options
-        const connectionOptions = createRedisClient();
+        // Use shared redis connection
+        const connectionOptions = getQueueConnection();
         if (!connectionOptions) {
                 logger.error('Redis is not configured');
                 return null;
@@ -136,8 +146,8 @@ const createWorker = (
                 return workers.get(queueName) || null;
         }
 
-        // get redis connection options
-        const connectionOptions = createRedisClient();
+        // Use shared redis connection
+        const connectionOptions = getQueueConnection();
         if (!connectionOptions) {
                 logger.warn(`Queue disabled: cannot create worker for queue ${queueName}`);
                 return null;
