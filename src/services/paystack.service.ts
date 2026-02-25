@@ -26,7 +26,7 @@ export interface PaystackVerifyResponse {
                 channel: string;
                 currency: string;
                 ip_address: string;
-                metadata: any;
+                metadata: Record<string, unknown>;
                 customer: {
                         id: number;
                         first_name: string;
@@ -34,7 +34,7 @@ export interface PaystackVerifyResponse {
                         email: string;
                         customer_code: string;
                         phone: string | null;
-                        metadata: any;
+                        metadata: Record<string, unknown>;
                         risk_action: string;
                 };
         };
@@ -55,7 +55,7 @@ class PaystackService {
                 email: string,
                 amount: number,
                 reference: string,
-                metadata: any = {}
+                metadata: Record<string, unknown> = {}
         ): Promise<PaystackInitializeResponse | null> {
                 try {
                         const response = await fetch(`${this.baseUrl}/transaction/initialize`, {
