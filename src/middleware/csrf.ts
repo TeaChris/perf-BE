@@ -17,6 +17,11 @@ const csrfProtection = catchAsync(async (req: Request, res: Response, next: Next
                 return next();
         }
 
+        // Paystack webhooks use HMAC signature verification, not CSRF tokens
+        if (req.path.startsWith('/api/v1/payments/webhook')) {
+                return next();
+        }
+
         const origin = req.get('Origin');
         const referer = req.get('Referer');
 
