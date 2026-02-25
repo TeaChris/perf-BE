@@ -1,8 +1,10 @@
 import mongoose from 'mongoose';
+import { v4 as uuidv4 } from 'uuid';
 import { Request, Response } from 'express';
 
 import { FlashSale, Product, Purchase } from '../model';
 import AppError from '../common/utils/app.error';
+import { paystackService } from '../services';
 import { catchAsync } from '../middleware';
 import { IFlashSale } from '../common';
 import { io } from '../server';
@@ -408,31 +410,51 @@ export const purchaseProduct = catchAsync(async (req: Request, res: Response) =>
                 throw new AppError('RESOURCE_EXHAUSTED: Stock depleted mid-transaction', 400);
         }
 
+        // Initialize payment with Paystack
+        const paymentReference = uuidv4();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+
+        const paystackResult = await paystackService.initializeTransaction(
+                req.user!.email,
+                saleProduct.salePrice,
+                paymentReference,
+                { userId, flashSaleId, productId, username: req.user!.username }
+        );
+
+        if (!paystackResult) {
+                // Rollback stock if payment initialization fails
+                await FlashSale.updateOne(
+                        { _id: flashSaleId, 'products.productId': productId },
+                        { $inc: { 'products.$.stockRemaining': 1 } }
+                );
+                throw new AppError('Payment initialization failed. Please try again.', 500);
+        }
+
         // Create purchase record
         const purchase = await Purchase.create({
                 userId: userId as unknown as mongoose.Types.ObjectId,
                 productId: new mongoose.Types.ObjectId(productId as string),
                 flashSaleId: new mongoose.Types.ObjectId(flashSaleId as string),
                 price: saleProduct.salePrice,
-                purchasedAt: new Date()
+                status: 'pending',
+                paymentReference,
+                expiresAt
         });
 
-        // Emit real-time updates
+        // Emit real-time stock update
         const remainingStock = updatedSale.products[productIndex].stockRemaining;
         io.to(`sale_${flashSaleId}`).emit('stock_update', {
                 productId,
                 remainingStock
         });
 
-        io.to(`sale_${flashSaleId}`).emit('new_purchase', {
-                username: req.user!.username,
-                purchasedAt: purchase.purchasedAt
-        });
-
         res.status(201).json({
                 status: 'success',
-                message: 'Acquisition finalized successfully',
-                data: { purchase }
+                message: 'Payment initialized successfully. Redirecting to checkout.',
+                data: {
+                        purchase,
+                        authorization_url: paystackResult.data.authorization_url
+                }
         });
 });
 
