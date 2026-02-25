@@ -116,4 +116,4 @@ During development, I prioritized **System Resilience**. For instance:
 
 ---
 
-_Created by [Boluwatife Olasunkanmi O.](mailto:olasunkanmiboluwatife110@gmail.com)_
+_Created by [Boluwatife O. Olasunkanmi](mailto:olasunkanmiboluwatife110@gmail.com)_
