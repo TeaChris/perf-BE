@@ -33,4 +33,8 @@ export interface IEnvironment {
         COOKIE: {
                 DOMAIN: string;
         };
+        PAYSTACK: {
+                SECRET_KEY: string;
+                CALLBACK_URL: string;
+        };
 }
