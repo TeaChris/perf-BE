@@ -1,4 +1,4 @@
-# Performance Backend Engine
+# Flash Backend Engine
 
 [![Node.js](https://img.shields.io/badge/Node.js-20.x-green.svg)](https://nodejs.org/)
 [![Express](https://img.shields.io/badge/Express-5.x-blue.svg)](https://expressjs.com/)
@@ -54,7 +54,7 @@ The application implements a hardened security stack:
 
 ### 3. Real-time Synchronization
 
-Using Socket.io namespaces and rooms, we broadcast stock updates ONLY to users currently viewing a specific sale, minimizing network overhead while maintaining perfect state synchronization across thousands of clients.
+Using Socket.io namespaces and rooms, I broadcast stock updates ONLY to users currently viewing a specific sale, minimizing network overhead while maintaining perfect state synchronization across thousands of clients.
 
 ---
 
@@ -116,4 +116,4 @@ During development, I prioritized **System Resilience**. For instance:
 
 ---
 
-_Created by [Boluwatife Olasunkanmi O.](https://github.com/your-profile)_
+_Created by [Boluwatife Olasunkanmi O.](mailto:olasunkanmiboluwatife110@gmail.com)_
