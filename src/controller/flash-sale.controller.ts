@@ -6,40 +6,13 @@ import { FlashSale, Product, Purchase } from '../model';
 import AppError from '../common/utils/app.error';
 import { paystackService } from '../services';
 import { catchAsync } from '../middleware';
-import { IFlashSale } from '../common';
+import { IFlashSale, IProduct } from '../common';
 import { io } from '../server';
 
-/**
- * @desc    Utility to synchronize flash sale statuses based on current time
- */
-const syncSaleStatuses = async () => {
-        const now = new Date();
-
-        // Find scheduled or active sales that have already ended
-        const expiredSales = await FlashSale.find({
-                status: { $in: ['scheduled', 'active'] },
-                endTime: { $lt: now }
-        });
-
-        if (expiredSales.length > 0) {
-                for (const sale of expiredSales) {
-                        // Return remaining stock to products
-                        for (const p of sale.products) {
-                                if (p.stockRemaining > 0) {
-                                        await Product.findByIdAndUpdate(p.productId, {
-                                                $inc: { stock: p.stockRemaining }
-                                        });
-                                }
-                        }
-                        sale.status = 'ended';
-                        sale.isActive = false;
-                        await sale.save();
-                }
-                console.log(
-                        `[FlashSaleSync] Synchronized ${expiredSales.length} sales to 'ended' status and returned stock.`
-                );
-        }
-};
+/** Type for a populated productId field after Mongoose .populate() */
+interface PopulatedProduct extends Pick<IProduct, 'name' | 'price' | 'images'> {
+        _id: import('mongoose').Types.ObjectId;
+}
 
 /**
  * @desc    Get all flash sales
@@ -47,9 +20,6 @@ const syncSaleStatuses = async () => {
  * @access  Private
  */
 export const getFlashSales = catchAsync(async (req: Request, res: Response) => {
-        // Sync statuses before listing
-        await syncSaleStatuses();
-
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 10;
         const status = req.query.status as string | undefined;
@@ -246,7 +216,7 @@ export const updateFlashSale = catchAsync(async (req: Request, res: Response) =>
                                         salePrice: newP.salePrice,
                                         stockLimit: newP.stockLimit,
                                         stockRemaining: newP.stockLimit
-                                } as any);
+                                } as IFlashSale['products'][number]);
                         }
                 }
 
@@ -256,7 +226,9 @@ export const updateFlashSale = catchAsync(async (req: Request, res: Response) =>
                 );
                 for (const remP of removedProducts) {
                         await Product.findByIdAndUpdate(remP.productId, { $inc: { stock: remP.stockRemaining } });
-                        flashSale.products = flashSale.products.filter(p => p.productId !== remP.productId) as any;
+                        flashSale.products = flashSale.products.filter(
+                                p => p.productId !== remP.productId
+                        ) as typeof flashSale.products;
                 }
         }
 
@@ -480,8 +452,10 @@ export const getSaleLeaderboard = catchAsync(async (req: Request, res: Response)
 
         const entries = purchases.map((p, index) => ({
                 rank: skip + index + 1,
-                userId: (p.userId as any)._id,
-                username: (p.userId as any).username.replace(/(.{2}).+(.{2})/, '$1***$2'), // Mask username
+                userId: (p.userId as unknown as { _id: import('mongoose').Types.ObjectId; username: string })._id,
+                username: (
+                        p.userId as unknown as { _id: import('mongoose').Types.ObjectId; username: string }
+                ).username.replace(/(.{2}).+(.{2})/, '$1***$2'), // Mask username
                 purchasedAt: p.purchasedAt
         }));
 
@@ -526,16 +500,16 @@ export const getProductFlashSaleStatus = catchAsync(async (req: Request, res: Re
                 status: 'success',
                 data: {
                         _id: flashSale._id,
-                        productId: (saleProduct?.productId as any)._id,
-                        productName: (saleProduct?.productId as any).name,
-                        productImage: (saleProduct?.productId as any).images[0],
+                        productId: (saleProduct?.productId as unknown as PopulatedProduct)._id,
+                        productName: (saleProduct?.productId as unknown as PopulatedProduct).name,
+                        productImage: (saleProduct?.productId as unknown as PopulatedProduct).images[0],
                         status: flashSale.startTime <= now ? 'live' : 'upcoming',
                         startsAt: flashSale.startTime,
                         endsAt: flashSale.endTime,
                         totalStock: saleProduct?.stockLimit,
                         remainingStock: saleProduct?.stockRemaining,
                         priceAmount: saleProduct?.salePrice,
-                        priceCurrency: 'USD'
+                        priceCurrency: 'NGN'
                 }
         });
 });
