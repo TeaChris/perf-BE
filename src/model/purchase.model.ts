@@ -24,9 +24,22 @@ const purchaseSchema = new mongoose.Schema<IPurchase, PurchaseModel>(
                         type: Number,
                         required: [true, 'Purchase price is required']
                 },
-                purchasedAt: {
+                status: {
+                        type: String,
+                        enum: ['pending', 'completed', 'failed', 'expired'],
+                        default: 'pending'
+                },
+                paymentReference: {
+                        type: String,
+                        required: [true, 'Payment reference is required'],
+                        unique: true
+                },
+                expiresAt: {
                         type: Date,
-                        default: Date.now
+                        required: [true, 'Expiry time is required']
+                },
+                purchasedAt: {
+                        type: Date
                 }
         },
         {
