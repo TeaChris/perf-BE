@@ -13,8 +13,8 @@ const userSchema = new mongoose.Schema<IUser, UserModel, UserMethods>(
                         type: String,
                         unique: true,
                         required: [true, 'Username is required'],
-                        min: [3, 'Username must be at least 3 characters long'],
-                        max: [20, 'Username must be at most 20 characters long']
+                        minlength: [3, 'Username must be at least 3 characters long'],
+                        maxlength: [20, 'Username must be at most 20 characters long']
                 },
                 email: {
                         trim: true,
@@ -24,7 +24,7 @@ const userSchema = new mongoose.Schema<IUser, UserModel, UserMethods>(
                         lowercase: true,
                         validate: {
                                 validator: function (v: string) {
-                                        return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(v);
+                                        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
                                 },
                                 message: 'Please enter a valid email address'
                         }
@@ -33,7 +33,7 @@ const userSchema = new mongoose.Schema<IUser, UserModel, UserMethods>(
                         type: String,
                         select: false,
                         required: true,
-                        min: [6, 'Password must be at least 6 characters long']
+                        minlength: [6, 'Password must be at least 6 characters long']
                 },
                 lastLogin: {
                         type: Date,
