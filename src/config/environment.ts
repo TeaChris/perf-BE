@@ -8,7 +8,9 @@ const validateEnvironment = () => {
         const requiredVars = [
                 'REFRESH_JWT_EXPIRES_IN_SECONDS',
                 'REFRESH_JWT_EXPIRES_IN',
+                'PAYSTACK_CALLBACK_URL',
                 'ACCESS_JWT_EXPIRES_IN',
+                'PAYSTACK_SECRET_KEY',
                 'CACHE_REDIS_URL',
                 'QUEUE_REDIS_URL',
                 'REFRESH_JWT_KEY',
@@ -84,5 +86,9 @@ export const ENVIRONMENT: IEnvironment = {
         },
         COOKIE: {
                 DOMAIN: process.env.COOKIE_DOMAIN!
+        },
+        PAYSTACK: {
+                SECRET_KEY: process.env.PAYSTACK_SECRET_KEY!,
+                CALLBACK_URL: process.env.PAYSTACK_CALLBACK_URL!
         }
 };
