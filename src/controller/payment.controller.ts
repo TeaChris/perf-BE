@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { Request, Response } from 'express';
 
-import { Purchase, FlashSale, Product } from '../model';
+import { Purchase, FlashSale, Asset } from '../model';
 import { paystackService } from '../services';
 import { catchAsync } from '../middleware';
 import { ENVIRONMENT } from '../config';
@@ -38,7 +38,7 @@ export const handleWebhook = catchAsync(async (req: Request, res: Response) => {
                         // Emit real-time purchase confirmation to the user
                         io.to(`user_${purchase.userId}`).emit('payment_success', {
                                 purchaseId: purchase._id,
-                                productId: purchase.productId
+                                assetId: purchase.assetId
                         });
 
                         // Emit real-time purchase feed update
@@ -57,20 +57,20 @@ export const handleWebhook = catchAsync(async (req: Request, res: Response) => {
 
                         // Return stock to the flash sale
                         const flashSale = await FlashSale.findOneAndUpdate(
-                                { _id: purchase.flashSaleId, 'products.productId': purchase.productId },
-                                { $inc: { 'products.$.stockRemaining': 1 } },
+                                { _id: purchase.flashSaleId, 'assets.assetId': purchase.assetId },
+                                { $inc: { 'assets.$.stockRemaining': 1 } },
                                 { new: true }
                         );
 
                         if (flashSale) {
                                 // Emit stock update
-                                const productIndex = flashSale.products.findIndex(
-                                        p => p.productId.toString() === purchase.productId.toString()
+                                const assetIndex = flashSale.assets.findIndex(
+                                        a => a.assetId.toString() === purchase.assetId.toString()
                                 );
-                                if (productIndex !== -1) {
+                                if (assetIndex !== -1) {
                                         io.to(`sale_${purchase.flashSaleId}`).emit('stock_update', {
-                                                productId: purchase.productId,
-                                                remainingStock: flashSale.products[productIndex].stockRemaining
+                                                assetId: purchase.assetId,
+                                                remainingStock: flashSale.assets[assetIndex].stockRemaining
                                         });
                                 }
                         }
