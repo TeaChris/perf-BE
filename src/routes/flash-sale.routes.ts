@@ -10,9 +10,9 @@ import {
         activateFlashSale,
         deactivateFlashSale,
         getActiveFlashSales,
-        purchaseProduct,
+        purchaseAsset,
         getSaleLeaderboard,
-        getProductFlashSaleStatus
+        getAssetFlashSaleStatus
 } from '../controller';
 
 const router = Router();
@@ -27,13 +27,13 @@ const purchaseRateLimiter = rateLimit({
 });
 
 // Public routes (general)
-router.get('/product/:productId', getProductFlashSaleStatus);
+router.get('/asset/:assetId', getAssetFlashSaleStatus);
 
 // Public routes (authenticated users)
 router.get('/', protect, getFlashSales);
 router.get('/active', protect, getActiveFlashSales);
 router.get('/:id/leaderboard', protect, getSaleLeaderboard);
-router.post('/:id/purchase', protect, purchaseRateLimiter, purchaseProduct);
+router.post('/:id/purchase', protect, purchaseRateLimiter, purchaseAsset);
 
 // Admin-only routes
 router.post('/', protect, adminOnly, createFlashSale);
