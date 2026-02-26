@@ -7,7 +7,7 @@ import { db } from './db';
 import app from './server/app';
 import { ALLOWED_ORIGINS, ENVIRONMENT, stopRedisConnections } from '@/config';
 import { logger, startQueueWorkers, stopQueueWorkers } from './common';
-import { Purchase, FlashSale, Product } from './model';
+import { Purchase, FlashSale, Asset } from './model';
 
 const port = ENVIRONMENT.APP.PORT;
 const appName = ENVIRONMENT.APP.NAME;
@@ -95,19 +95,19 @@ const appServer = server.listen(port, async () => {
 
                                 // Return stock to flash sale
                                 const flashSale = await FlashSale.findOneAndUpdate(
-                                        { _id: purchase.flashSaleId, 'products.productId': purchase.productId },
-                                        { $inc: { 'products.$.stockRemaining': 1 } },
+                                        { _id: purchase.flashSaleId, 'assets.assetId': purchase.assetId },
+                                        { $inc: { 'assets.$.stockRemaining': 1 } },
                                         { new: true }
                                 );
 
                                 if (flashSale) {
-                                        const product = flashSale.products.find(
-                                                p => p.productId.toString() === purchase.productId.toString()
+                                        const saleAsset = flashSale.assets.find(
+                                                a => a.assetId.toString() === purchase.assetId.toString()
                                         );
-                                        if (product) {
+                                        if (saleAsset) {
                                                 io.to(`sale_${purchase.flashSaleId}`).emit('stock_update', {
-                                                        productId: purchase.productId,
-                                                        remainingStock: product.stockRemaining
+                                                        assetId: purchase.assetId,
+                                                        remainingStock: saleAsset.stockRemaining
                                                 });
                                         }
                                 }
@@ -138,10 +138,10 @@ const appServer = server.listen(port, async () => {
                         });
 
                         for (const sale of expiredSales) {
-                                for (const p of sale.products) {
-                                        if (p.stockRemaining > 0) {
-                                                await Product.findByIdAndUpdate(p.productId, {
-                                                        $inc: { stock: p.stockRemaining }
+                                for (const a of sale.assets) {
+                                        if (a.stockRemaining > 0) {
+                                                await Asset.findByIdAndUpdate(a.assetId, {
+                                                        $inc: { stock: a.stockRemaining }
                                                 });
                                         }
                                 }
