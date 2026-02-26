@@ -10,10 +10,10 @@ const purchaseSchema = new mongoose.Schema<IPurchase, PurchaseModel>(
                         ref: 'User',
                         required: [true, 'User ID is required']
                 },
-                productId: {
+                assetId: {
                         type: mongoose.Schema.Types.ObjectId,
-                        ref: 'Product',
-                        required: [true, 'Product ID is required']
+                        ref: 'Asset',
+                        required: [true, 'Asset ID is required']
                 },
                 flashSaleId: {
                         type: mongoose.Schema.Types.ObjectId,
