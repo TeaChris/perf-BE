@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 
-export interface IProduct {
+export type AssetType = 'event_pass' | 'identity_badge' | 'smart_device' | 'intel_report';
+
+export interface IAsset {
         _id?: mongoose.Types.ObjectId;
         name: string;
         description: string;
@@ -9,8 +11,12 @@ export interface IProduct {
         stock: number;
         images: string[];
         category: string;
+        assetType: AssetType;
         tags: string[];
         isActive: boolean;
+        accessDetails?: string;
+        editionInfo?: string;
+        metadata?: Record<string, unknown>;
         createdBy: mongoose.Types.ObjectId;
         createdAt?: Date;
         updatedAt?: Date;
@@ -20,8 +26,8 @@ export interface IFlashSale {
         _id?: mongoose.Types.ObjectId;
         title: string;
         description: string;
-        products: Array<{
-                productId: mongoose.Types.ObjectId;
+        assets: Array<{
+                assetId: mongoose.Types.ObjectId;
                 salePrice: number;
                 stockLimit: number;
                 stockRemaining: number;
