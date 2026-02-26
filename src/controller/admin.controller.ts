@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 
-import { User, Product, FlashSale } from '../model';
+import { User, Asset, FlashSale } from '../model';
 import AppError from '../common/utils/app.error';
 import { catchAsync } from '../middleware';
 import { Role, IUser } from '../common';
@@ -12,9 +12,9 @@ import { Role, IUser } from '../common';
  * @access  Private (Admin only)
  */
 export const getDashboardStats = catchAsync(async (req: Request, res: Response) => {
-        const [totalUsers, totalProducts, activeFlashSales, totalFlashSales] = await Promise.all([
+        const [totalUsers, totalAssets, activeFlashSales, totalFlashSales] = await Promise.all([
                 User.countDocuments(),
-                Product.countDocuments({ isActive: true }),
+                Asset.countDocuments({ isActive: true }),
                 FlashSale.countDocuments({ status: 'active', isActive: true }),
                 FlashSale.countDocuments()
         ]);
@@ -30,7 +30,7 @@ export const getDashboardStats = catchAsync(async (req: Request, res: Response) 
                         stats: {
                                 totalUsers,
                                 newUsersThisWeek,
-                                totalProducts,
+                                totalAssets,
                                 activeFlashSales,
                                 totalFlashSales
                         }
