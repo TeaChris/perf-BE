@@ -23,7 +23,7 @@ import {
         customSanitizer
 } from '@/middleware';
 
-import { authRouter, productRouter, flashSaleRouter, adminRouter, paymentRouter } from '@/routes';
+import { authRouter, assetRouter, flashSaleRouter, adminRouter, paymentRouter } from '@/routes';
 
 /**
  * handle uncaught exceptions
@@ -226,7 +226,7 @@ app.use('/api/v1/alive', (req: Request, res: Response) => {
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/payments', paymentRouter);
-app.use('/api/v1/products', productRouter);
+app.use('/api/v1/assets', assetRouter);
 app.use('/api/v1/flash-sales', flashSaleRouter);
 // 404 handler - must be after all other routes
 app.use((req: Request, res: Response) => {
