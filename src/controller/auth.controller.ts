@@ -12,6 +12,8 @@ import { fifteenMinutes, setCookie, toJSON, logger } from '../common';
 
 // Verification tokens expire after 24 hours
 const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+// Reset tokens expire after 1 hour
+const RESET_TOKEN_TTL_MS = 1 * 60 * 60 * 1000;
 
 /**
  * @desc    Register a new user
@@ -58,7 +60,7 @@ export const signUp = catchAsync(async (req: Request, res: Response) => {
  * @access  Public
  */
 export const verifyEmail = catchAsync(async (req: Request, res: Response) => {
-        const { token } = req.params;
+        const token = req.params.token as string;
 
         // 1) Find user with this token
         const user = await User.findOne({ verificationToken: token }).select(
@@ -214,5 +216,94 @@ export const getMe = catchAsync(async (req: Request, res: Response) => {
                 data: {
                         user
                 }
+        });
+});
+
+/**
+ * @desc    Forgot password request
+ * @route   POST /api/v1/auth/forgot-password
+ * @access  Public
+ */
+export const forgotPassword = catchAsync(async (req: Request, res: Response) => {
+        const { email } = req.body;
+
+        // 1) Find user
+        const user = await User.findOne({ email });
+        if (!user) {
+                // High security: don't reveal if user exists. Return success regardless.
+                return res.status(200).json({
+                        status: 'success',
+                        message: 'If an account with that email exists, we have sent a password reset link.'
+                });
+        }
+
+        // 2) Generate reset token
+        const resetToken = randomUUID();
+        // Hash the token for DB storage (security best practice)
+        const hashedToken = createHash('sha256').update(resetToken).digest('hex');
+
+        user.passwordResetToken = hashedToken;
+        user.passwordResetExpires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+        await user.save({ validateBeforeSave: false });
+
+        // 3) Send email
+        try {
+                await emailService.sendPasswordResetEmail(user.email, user.username, resetToken);
+                res.status(200).json({
+                        status: 'success',
+                        message: 'If an account with that email exists, we have sent a password reset link.'
+                });
+        } catch (err) {
+                user.passwordResetToken = null;
+                user.passwordResetExpires = null;
+                await user.save({ validateBeforeSave: false });
+                throw new AppError('Error sending reset email. Try again later.', 500);
+        }
+});
+
+/**
+ * @desc    Reset password
+ * @route   POST /api/v1/auth/reset-password/:token
+ * @access  Public
+ */
+export const resetPassword = catchAsync(async (req: Request, res: Response) => {
+        const token = req.params.token as string;
+        const { password } = req.body;
+
+        // 1) Hash the provided token (to match what's in DB)
+        const hashedToken = createHash('sha256').update(token).digest('hex');
+
+        // 2) Find user with valid token
+        const user = await User.findOne({
+                passwordResetToken: hashedToken,
+                passwordResetExpires: { $gt: new Date() }
+        }).select('+tokenVersion');
+
+        if (!user) {
+                throw new AppError('Token is invalid or has expired', 400);
+        }
+
+        // 3) Set new password and clear reset fields
+        user.password = password;
+        user.passwordResetToken = null;
+        user.passwordResetExpires = null;
+
+        // 4) High security: invalidate all current sessions by incrementing tokenVersion
+        user.tokenVersion += 1;
+        await user.save();
+
+        // 5) Clean up Redis whitelists for this user
+        const userRefreshKey = `user:${user._id}:refresh`;
+        const activeJtis = await redis.smembers(userRefreshKey);
+        if (activeJtis.length > 0) {
+                const keysToRevoke = activeJtis.map(jti => `refresh:${jti}`);
+                await Promise.all(keysToRevoke.map(key => redis.del(key)));
+                await redis.del(userRefreshKey);
+        }
+
+        res.status(200).json({
+                status: 'success',
+                message: 'Password reset successful! You can now log in.'
         });
 });
