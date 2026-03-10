@@ -77,6 +77,16 @@ const userSchema = new mongoose.Schema<IUser, UserModel, UserMethods>(
                         select: false,
                         default: null
                 },
+                passwordResetToken: {
+                        type: String,
+                        select: false,
+                        default: null
+                },
+                passwordResetExpires: {
+                        type: Date,
+                        select: false,
+                        default: null
+                },
                 isTermsAndConditionAccepted: {
                         type: Boolean,
                         default: false,
