@@ -1,4 +1,5 @@
 import { randomUUID, createHash } from 'crypto';
+import jwt from 'jsonwebtoken';
 import { Request, Response } from 'express';
 
 import { User } from '../model';
@@ -8,6 +9,9 @@ import { emailService } from '@/services/email.service';
 import AppError from '../common/utils/app.error';
 import { RegisterInput, LoginInput } from '../schema';
 import { fifteenMinutes, setCookie, toJSON, logger } from '../common';
+
+// Verification tokens expire after 24 hours
+const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
  * @desc    Register a new user
@@ -23,8 +27,9 @@ export const signUp = catchAsync(async (req: Request, res: Response) => {
                 throw new AppError('User with this email or username already exists', 400);
         }
 
-        // 2) Generate verification token
+        // 2) Generate verification token with expiry
         const verificationToken = randomUUID();
+        const verificationTokenExpiresAt = new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS);
 
         // 3) Create user
         const user = await User.create({
@@ -34,6 +39,7 @@ export const signUp = catchAsync(async (req: Request, res: Response) => {
                 tokenVersion: 0,
                 isTermsAndConditionAccepted,
                 verificationToken,
+                verificationTokenExpiresAt,
                 isVerified: false
         });
 
@@ -55,15 +61,26 @@ export const verifyEmail = catchAsync(async (req: Request, res: Response) => {
         const { token } = req.params;
 
         // 1) Find user with this token
-        const user = await User.findOne({ verificationToken: token }).select('+verificationToken');
+        const user = await User.findOne({ verificationToken: token }).select(
+                '+verificationToken +verificationTokenExpiresAt'
+        );
 
         if (!user) {
                 throw new AppError('Invalid or expired verification token', 400);
         }
 
-        // 2) Update user
+        // 2) Check token expiry
+        if (user.verificationTokenExpiresAt && user.verificationTokenExpiresAt < new Date()) {
+                throw new AppError(
+                        'Verification token has expired. Please register again to receive a new verification email.',
+                        400
+                );
+        }
+
+        // 3) Mark user as verified and clear the token
         user.isVerified = true;
         user.verificationToken = null;
+        user.verificationTokenExpiresAt = null;
         await user.save();
 
         res.status(200).json({
@@ -127,7 +144,11 @@ export const signIn = catchAsync(async (req: Request, res: Response) => {
                 maxAge: ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS * 1000
         });
 
-        // 6) Update user cache to ensure session sync
+        // 6) Update lastLogin timestamp
+        user.lastLogin = new Date();
+        await user.save({ validateModifiedOnly: true });
+
+        // 7) Update user cache to ensure session sync
         const userToCache = toJSON(user, ['password', '__v']);
         await redis.set(`user:${user._id}`, userToCache, ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS);
 
@@ -150,7 +171,7 @@ export const signOut = catchAsync(async (req: Request, res: Response) => {
 
         if (perfRefreshToken) {
                 try {
-                        const jwt = await import('jsonwebtoken');
+                        // jwt is imported at the top of this file — no dynamic import needed
                         const decoded = jwt.verify(perfRefreshToken, ENVIRONMENT.JWT.REFRESH_KEY) as {
                                 id: string;
                                 jti: string;

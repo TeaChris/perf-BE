@@ -20,8 +20,9 @@ interface PopulatedAsset extends Pick<IAsset, 'name' | 'price' | 'images'> {
  * @access  Private
  */
 export const getFlashSales = catchAsync(async (req: Request, res: Response) => {
-        const page = parseInt(req.query.page as string) || 1;
-        const limit = parseInt(req.query.limit as string) || 10;
+        // Clamp pagination to prevent resource exhaustion
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 10));
         const status = req.query.status as string | undefined;
         const skip = (page - 1) * limit;
 
@@ -85,11 +86,17 @@ interface FlashSaleAssetInput {
  * @desc    Create new flash sale
  * @route   POST /api/v1/flash-sales
  * @access  Private (Admin only)
+ *
+ * NOTE: Stock deduction + flash sale creation are wrapped in a MongoDB transaction
+ * to ensure atomicity. This requires a MongoDB Replica Set (or Atlas).
+ * A standalone single-node MongoDB instance will throw:
+ *   "Transaction numbers are only allowed on a replica set member or mongos"
+ * Use a replica set in all environments (local: mongod --replSet rs0).
  */
 export const createFlashSale = catchAsync(async (req: Request, res: Response) => {
         const { title, description, assets, startTime, endTime, duration } = req.body;
 
-        // Validate assets exist
+        // Validate assets exist up front (before starting the transaction)
         const assetIds = (assets as FlashSaleAssetInput[]).map(a => a.assetId);
         const existingAssets = await Asset.find({ _id: { $in: assetIds } });
 
@@ -97,46 +104,49 @@ export const createFlashSale = catchAsync(async (req: Request, res: Response) =>
                 throw new AppError('One or more assets not found', 404);
         }
 
-        // Deduct stock from assets and validate availability
-        for (const a of assets as FlashSaleAssetInput[]) {
-                const asset = await Asset.findOneAndUpdate(
-                        { _id: a.assetId, stock: { $gte: a.stockLimit } },
-                        { $inc: { stock: -a.stockLimit } },
-                        { new: true }
-                );
+        const session = await mongoose.startSession();
+        let flashSale: typeof FlashSale.prototype | undefined;
 
-                if (!asset) {
-                        // Rollback already deducted stock if one fails
-                        // Note: In a production app, use MongoDB Transactions.
-                        // For simplicity here, we'll implement a basic cleanup or just throw.
-                        const successfulIds = assetIds.slice(0, assetIds.indexOf(a.assetId));
-                        for (const sId of successfulIds) {
-                                const sAsset = (assets as FlashSaleAssetInput[]).find(item => item.assetId === sId);
-                                if (sAsset) {
-                                        await Asset.findByIdAndUpdate(sId, { $inc: { stock: sAsset.stockLimit } });
+        try {
+                await session.withTransaction(async () => {
+                        // Deduct stock from each asset atomically within the transaction
+                        for (const a of assets as FlashSaleAssetInput[]) {
+                                const asset = await Asset.findOneAndUpdate(
+                                        { _id: a.assetId, stock: { $gte: a.stockLimit } },
+                                        { $inc: { stock: -a.stockLimit } },
+                                        { new: true, session }
+                                );
+                                if (!asset) {
+                                        // Throwing inside withTransaction causes automatic abort + rollback
+                                        throw new AppError(`Insufficient stock for asset: ${a.assetId}`, 400);
                                 }
                         }
-                        throw new AppError(`Insufficient stock for asset: ${a.assetId} or asset not found`, 400);
-                }
+
+                        const assetsWithStock = (assets as FlashSaleAssetInput[]).map(a => ({
+                                assetId: new mongoose.Types.ObjectId(a.assetId),
+                                salePrice: a.salePrice,
+                                stockLimit: a.stockLimit,
+                                stockRemaining: a.stockLimit
+                        }));
+
+                        [flashSale] = await FlashSale.create(
+                                [
+                                        {
+                                                title,
+                                                description,
+                                                assets: assetsWithStock,
+                                                startTime: new Date(startTime),
+                                                endTime: new Date(endTime),
+                                                duration,
+                                                createdBy: req.user!._id
+                                        }
+                                ],
+                                { session }
+                        );
+                });
+        } finally {
+                await session.endSession();
         }
-
-        // Prepare assets with initial stock
-        const assetsWithStock = (assets as FlashSaleAssetInput[]).map(a => ({
-                assetId: new mongoose.Types.ObjectId(a.assetId),
-                salePrice: a.salePrice,
-                stockLimit: a.stockLimit,
-                stockRemaining: a.stockLimit
-        }));
-
-        const flashSale = await FlashSale.create({
-                title,
-                description,
-                assets: assetsWithStock,
-                startTime: new Date(startTime),
-                endTime: new Date(endTime),
-                duration,
-                createdBy: req.user!._id
-        });
 
         res.status(201).json({
                 status: 'success',
@@ -302,7 +312,6 @@ export const deleteFlashSale = catchAsync(async (req: Request, res: Response) =>
         }
 
         // Return remaining stock to master record if it wasn't already returned
-        // (i.e., if status is not 'ended' or 'cancelled')
         if (flashSale.status !== 'ended' && flashSale.status !== 'cancelled') {
                 for (const a of flashSale.assets) {
                         if (a.stockRemaining > 0) {
@@ -323,6 +332,11 @@ export const deleteFlashSale = catchAsync(async (req: Request, res: Response) =>
  * @desc    Purchase asset in flash sale
  * @route   POST /api/v1/flash-sales/:id/purchase
  * @access  Private
+ *
+ * NOTE: Stock decrement and Purchase creation are wrapped in a MongoDB transaction
+ * to ensure atomicity — a crash between the two operations can no longer leave
+ * stock decremented without a purchase record (or vice versa).
+ * Requires a MongoDB Replica Set in your connection string.
  */
 export const purchaseAsset = catchAsync(async (req: Request, res: Response) => {
         const { assetId } = req.body;
@@ -359,26 +373,10 @@ export const purchaseAsset = catchAsync(async (req: Request, res: Response) => {
                 throw new AppError('SINGLE_UNIT_POLICY: You have already participated in this acquisition window', 400);
         }
 
-        // Atomic update for stock
-        const updatedSale = await FlashSale.findOneAndUpdate(
-                {
-                        _id: flashSaleId,
-                        'assets.assetId': assetId,
-                        'assets.stockRemaining': { $gt: 0 }
-                },
-                {
-                        $inc: { 'assets.$.stockRemaining': -1 }
-                },
-                { new: true }
-        );
-
-        if (!updatedSale) {
-                throw new AppError('RESOURCE_EXHAUSTED: Stock depleted mid-transaction', 400);
-        }
-
-        // Initialize payment with Paystack
+        // Initialise Paystack payment before the transaction so we don't hold a DB session
+        // while waiting on a network call
         const paymentReference = uuidv4();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
         const paystackResult = await paystackService.initializeTransaction(
                 req.user!.email,
@@ -388,31 +386,59 @@ export const purchaseAsset = catchAsync(async (req: Request, res: Response) => {
         );
 
         if (!paystackResult) {
-                // Rollback stock if payment initialization fails
-                await FlashSale.updateOne(
-                        { _id: flashSaleId, 'assets.assetId': assetId },
-                        { $inc: { 'assets.$.stockRemaining': 1 } }
-                );
                 throw new AppError('Payment initialization failed. Please try again.', 500);
         }
 
-        // Create purchase record
-        const purchase = await Purchase.create({
-                userId: userId as unknown as mongoose.Types.ObjectId,
-                assetId: new mongoose.Types.ObjectId(assetId as string),
-                flashSaleId: new mongoose.Types.ObjectId(flashSaleId as string),
-                price: saleAsset.salePrice,
-                status: 'pending',
-                paymentReference,
-                expiresAt
-        });
+        // Atomically decrement stock AND create the purchase record in a transaction.
+        // If either fails (e.g. stock depleted by a concurrent request), the whole
+        // operation is rolled back automatically.
+        const session = await mongoose.startSession();
+        let purchase: InstanceType<typeof Purchase> | undefined;
+        let updatedSale: typeof flashSale | null = null;
 
-        // Emit real-time stock update
-        const remainingStock = updatedSale.assets[assetIndex].stockRemaining;
-        io.to(`sale_${flashSaleId}`).emit('stock_update', {
-                assetId,
-                remainingStock
-        });
+        try {
+                await session.withTransaction(async () => {
+                        updatedSale = await FlashSale.findOneAndUpdate(
+                                {
+                                        _id: flashSaleId,
+                                        'assets.assetId': assetId,
+                                        'assets.stockRemaining': { $gt: 0 }
+                                },
+                                { $inc: { 'assets.$.stockRemaining': -1 } },
+                                { new: true, session }
+                        );
+
+                        if (!updatedSale) {
+                                throw new AppError('RESOURCE_EXHAUSTED: Stock depleted mid-transaction', 400);
+                        }
+
+                        [purchase] = await Purchase.create(
+                                [
+                                        {
+                                                userId: userId as unknown as mongoose.Types.ObjectId,
+                                                assetId: new mongoose.Types.ObjectId(assetId as string),
+                                                flashSaleId: new mongoose.Types.ObjectId(flashSaleId as string),
+                                                price: saleAsset.salePrice,
+                                                status: 'pending',
+                                                paymentReference,
+                                                expiresAt
+                                        }
+                                ],
+                                { session }
+                        );
+                });
+        } finally {
+                await session.endSession();
+        }
+
+        // Emit real-time stock update after the transaction commits
+        if (updatedSale) {
+                const remainingStock = (updatedSale as typeof flashSale).assets[assetIndex].stockRemaining;
+                io.to(`sale_${flashSaleId}`).emit('stock_update', {
+                        assetId,
+                        remainingStock
+                });
+        }
 
         res.status(201).json({
                 status: 'success',
@@ -431,8 +457,9 @@ export const purchaseAsset = catchAsync(async (req: Request, res: Response) => {
  */
 export const getSaleLeaderboard = catchAsync(async (req: Request, res: Response) => {
         const flashSaleId = req.params.id;
-        const page = parseInt(req.query.page as string) || 1;
-        const limit = parseInt(req.query.limit as string) || 10;
+        // Clamp pagination to prevent resource exhaustion
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 10));
         const skip = (page - 1) * limit;
 
         const [purchases, total] = await Promise.all([

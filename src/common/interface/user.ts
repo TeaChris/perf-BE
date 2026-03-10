@@ -21,6 +21,7 @@ export interface IUser {
         loginAttempts: number;
         lockoutUntil: Date | null;
         verificationToken: string | null;
+        verificationTokenExpiresAt: Date | null;
         isTermsAndConditionAccepted: boolean;
 }
 

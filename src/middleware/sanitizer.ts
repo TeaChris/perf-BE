@@ -17,13 +17,14 @@ const sanitizeObject = (obj: Record<string, unknown>): Record<string, unknown> =
 
                                 // 2. XSS Prevention: Sanitize strings
                                 if (typeof value === 'string') {
+                                        // Sanitize special HTML characters; '/' intentionally omitted
+                                        // (encoding slashes corrupts stored URLs/paths; React escapes at render time)
                                         obj[key] = value
                                                 .replace(/&/g, '&amp;')
                                                 .replace(/</g, '&lt;')
                                                 .replace(/>/g, '&gt;')
                                                 .replace(/"/g, '&quot;')
-                                                .replace(/'/g, '&#x27;')
-                                                .replace(/\//g, '&#x2F;');
+                                                .replace(/'/g, '&#x27;');
                                 } else if (typeof value === 'object' && value !== null) {
                                         sanitizeObject(value as Record<string, unknown>);
                                 }

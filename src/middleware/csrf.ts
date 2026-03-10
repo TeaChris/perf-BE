@@ -13,7 +13,10 @@ const csrfProtection = catchAsync(async (req: Request, res: Response, next: Next
                 return next();
         }
 
-        if (req.path.startsWith('/api/v1/auth')) {
+        // Only bypass CSRF for public (unauthenticated) auth routes.
+        // Private auth routes like logout remain CSRF-protected.
+        const CSRF_EXEMPT_PATHS = ['/login', '/register', '/verify-email'];
+        if (CSRF_EXEMPT_PATHS.some(p => req.path === p || req.path.startsWith(p + '/'))) {
                 return next();
         }
 

@@ -291,4 +291,4 @@ const closeQueueConnections = async (): Promise<void> => {
         }
 };
 
-export { addJob, createWorker, getJobStatus, clearQueue, closeQueueConnections };
+export { addJob, createWorker, getJobStatus, clearQueue, closeQueueConnections, getQueue };
