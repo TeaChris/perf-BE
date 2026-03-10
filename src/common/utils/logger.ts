@@ -2,7 +2,7 @@ import path from 'path';
 import { getCorrelationId } from './context';
 import { createLogger, transports, format, Logger } from 'winston';
 
-const { combine, timestamp, json, splat, errors, colorize, printf, label } = format;
+const { combine, timestamp, json, splat, errors, colorize, printf } = format;
 
 const consoleFormat = combine(
         colorize(),

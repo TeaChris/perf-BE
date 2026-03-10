@@ -1,25 +1,25 @@
 import mongoose, { Model } from 'mongoose';
 
-import { IProduct } from '../common';
+import { IAsset } from '../common';
 
-type ProductModel = Model<IProduct>;
+type AssetModel = Model<IAsset>;
 
-const productSchema = new mongoose.Schema<IProduct, ProductModel>(
+const assetSchema = new mongoose.Schema<IAsset, AssetModel>(
         {
                 name: {
                         type: String,
-                        required: [true, 'Product name is required'],
+                        required: [true, 'Asset name is required'],
                         trim: true,
-                        maxlength: [200, 'Product name cannot exceed 200 characters']
+                        maxlength: [200, 'Asset name cannot exceed 200 characters']
                 },
                 description: {
                         type: String,
-                        required: [true, 'Product description is required'],
+                        required: [true, 'Asset description is required'],
                         trim: true
                 },
                 price: {
                         type: Number,
-                        required: [true, 'Product price is required'],
+                        required: [true, 'Asset price is required'],
                         min: [0, 'Price cannot be negative']
                 },
                 compareAtPrice: {
@@ -38,8 +38,16 @@ const productSchema = new mongoose.Schema<IProduct, ProductModel>(
                 },
                 category: {
                         type: String,
-                        required: [true, 'Product category is required'],
+                        required: [true, 'Asset category is required'],
                         trim: true
+                },
+                assetType: {
+                        type: String,
+                        required: [true, 'Asset type is required'],
+                        enum: {
+                                values: ['event_pass', 'identity_badge', 'smart_device', 'intel_report'],
+                                message: 'Asset type must be one of: event_pass, identity_badge, smart_device, intel_report'
+                        }
                 },
                 tags: {
                         type: [String],
@@ -48,6 +56,18 @@ const productSchema = new mongoose.Schema<IProduct, ProductModel>(
                 isActive: {
                         type: Boolean,
                         default: true
+                },
+                accessDetails: {
+                        type: String,
+                        trim: true
+                },
+                editionInfo: {
+                        type: String,
+                        trim: true
+                },
+                metadata: {
+                        type: mongoose.Schema.Types.Mixed,
+                        default: {}
                 },
                 createdBy: {
                         type: mongoose.Schema.Types.ObjectId,
@@ -62,18 +82,18 @@ const productSchema = new mongoose.Schema<IProduct, ProductModel>(
 );
 
 // Index for better query performance
-productSchema.index({ name: 'text', description: 'text' });
-productSchema.index({ category: 1 });
-productSchema.index({ isActive: 1 });
-productSchema.index({ createdAt: -1 });
+assetSchema.index({ name: 'text', description: 'text' });
+assetSchema.index({ category: 1 });
+assetSchema.index({ assetType: 1 });
+assetSchema.index({ isActive: 1 });
+assetSchema.index({ createdAt: -1 });
 
-// Only show active products by default
-productSchema.pre(/^find/, function (this: mongoose.Query<any, IProduct>) {
+// Only show active assets by default
+assetSchema.pre(/^find/, function (this: mongoose.Query<any, IAsset>) {
         const query = this.getQuery();
         if (!Object.keys(query).includes('isActive')) {
                 this.where({ isActive: true });
         }
 });
 
-export const Product =
-        (mongoose.models.Product as ProductModel) || mongoose.model<IProduct, ProductModel>('Product', productSchema);
+export const Asset = (mongoose.models.Asset as AssetModel) || mongoose.model<IAsset, AssetModel>('Asset', assetSchema);

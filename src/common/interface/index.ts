@@ -4,3 +4,5 @@ export * from './environment';
 export * from './email.queue';
 export * from './product';
 export * from './purchase';
+export * from './category';
+export { ICategory } from './category';

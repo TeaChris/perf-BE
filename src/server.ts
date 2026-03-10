@@ -7,7 +7,6 @@ import { db } from './db';
 import app from './server/app';
 import { ALLOWED_ORIGINS, ENVIRONMENT, stopRedisConnections } from '@/config';
 import { logger, startQueueWorkers, stopQueueWorkers } from './common';
-import { Purchase, FlashSale, Product } from './model';
 
 const port = ENVIRONMENT.APP.PORT;
 const appName = ENVIRONMENT.APP.NAME;
@@ -77,94 +76,17 @@ io.on('connection', socket => {
 const appServer = server.listen(port, async () => {
         await db();
 
+        // Start BullMQ workers — this also schedules the repeatable maintenance jobs
+        // (expired-purchase-cleanup every 2 min, flash-sale-sync every 3 min).
+        // These replace the previous setInterval loops.
         await startQueueWorkers();
-
-        // Expired purchase cleanup — runs every 2 minutes
-        const CLEANUP_INTERVAL_MS = 2 * 60 * 1000;
-        setInterval(async () => {
-                try {
-                        const now = new Date();
-                        const expiredPurchases = await Purchase.find({
-                                status: 'pending',
-                                expiresAt: { $lt: now }
-                        });
-
-                        for (const purchase of expiredPurchases) {
-                                purchase.status = 'expired';
-                                await purchase.save();
-
-                                // Return stock to flash sale
-                                const flashSale = await FlashSale.findOneAndUpdate(
-                                        { _id: purchase.flashSaleId, 'products.productId': purchase.productId },
-                                        { $inc: { 'products.$.stockRemaining': 1 } },
-                                        { new: true }
-                                );
-
-                                if (flashSale) {
-                                        const product = flashSale.products.find(
-                                                p => p.productId.toString() === purchase.productId.toString()
-                                        );
-                                        if (product) {
-                                                io.to(`sale_${purchase.flashSaleId}`).emit('stock_update', {
-                                                        productId: purchase.productId,
-                                                        remainingStock: product.stockRemaining
-                                                });
-                                        }
-                                }
-
-                                io.to(`user_${purchase.userId}`).emit('payment_failed', {
-                                        reference: purchase.paymentReference,
-                                        reason: 'Payment reservation expired'
-                                });
-                        }
-
-                        if (expiredPurchases.length > 0) {
-                                logger.info(`🧹 Cleaned up ${expiredPurchases.length} expired purchase(s)`);
-                        }
-                } catch (error) {
-                        logger.error('Error during expired purchase cleanup:', error);
-                }
-        }, CLEANUP_INTERVAL_MS);
-
-        // Flash sale status sync — runs every 3 minutes
-        // Transitions expired scheduled/active sales to 'ended' and returns stock
-        const SYNC_INTERVAL_MS = 3 * 60 * 1000;
-        setInterval(async () => {
-                try {
-                        const now = new Date();
-                        const expiredSales = await FlashSale.find({
-                                status: { $in: ['scheduled', 'active'] },
-                                endTime: { $lt: now }
-                        });
-
-                        for (const sale of expiredSales) {
-                                for (const p of sale.products) {
-                                        if (p.stockRemaining > 0) {
-                                                await Product.findByIdAndUpdate(p.productId, {
-                                                        $inc: { stock: p.stockRemaining }
-                                                });
-                                        }
-                                }
-                                sale.status = 'ended';
-                                sale.isActive = false;
-                                await sale.save();
-                        }
-
-                        if (expiredSales.length > 0) {
-                                logger.info(`⏰ Synchronized ${expiredSales.length} flash sale(s) to 'ended' status`);
-                        }
-                } catch (error) {
-                        logger.error('Error during flash sale status sync:', error);
-                }
-        }, SYNC_INTERVAL_MS);
 
         logger.info(`🚀 ${appName} is listening on port ${port}`);
 });
 
 /**
- * unhandledRejection  handler
+ * unhandledRejection handler
  */
-
 process.on('unhandledRejection', async (error: Error) => {
         console.log('UNHANDLED REJECTION! 💥 Server Shutting down...');
         console.log(error.name, error.message);
@@ -184,7 +106,6 @@ process.on('unhandledRejection', async (error: Error) => {
 /**
  * Handle SIGTERM signal
  */
-
 process.on('SIGTERM', () => {
         logger.info('SIGTERM signal received: closing HTTP server gracefully');
 

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 
-import { User, Product, FlashSale } from '../model';
+import { User, Asset, FlashSale } from '../model';
 import AppError from '../common/utils/app.error';
 import { catchAsync } from '../middleware';
 import { Role, IUser } from '../common';
@@ -12,9 +12,9 @@ import { Role, IUser } from '../common';
  * @access  Private (Admin only)
  */
 export const getDashboardStats = catchAsync(async (req: Request, res: Response) => {
-        const [totalUsers, totalProducts, activeFlashSales, totalFlashSales] = await Promise.all([
+        const [totalUsers, totalAssets, activeFlashSales, totalFlashSales] = await Promise.all([
                 User.countDocuments(),
-                Product.countDocuments({ isActive: true }),
+                Asset.countDocuments({ isActive: true }),
                 FlashSale.countDocuments({ status: 'active', isActive: true }),
                 FlashSale.countDocuments()
         ]);
@@ -30,7 +30,7 @@ export const getDashboardStats = catchAsync(async (req: Request, res: Response) 
                         stats: {
                                 totalUsers,
                                 newUsersThisWeek,
-                                totalProducts,
+                                totalAssets,
                                 activeFlashSales,
                                 totalFlashSales
                         }
@@ -44,8 +44,9 @@ export const getDashboardStats = catchAsync(async (req: Request, res: Response) 
  * @access  Private (Admin only)
  */
 export const getAllUsers = catchAsync(async (req: Request, res: Response) => {
-        const page = parseInt(req.query.page as string) || 1;
-        const limit = parseInt(req.query.limit as string) || 20;
+        // Clamp pagination to prevent resource exhaustion
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
         const skip = (page - 1) * limit;
 
         const { role, search } = req.query;
@@ -53,9 +54,11 @@ export const getAllUsers = catchAsync(async (req: Request, res: Response) => {
         const query: Partial<IUser> & Record<string, unknown> = {};
         if (role) query.role = role as Role;
         if (search) {
+                // Escape regex special chars to prevent catastrophic backtracking
+                const escapedSearch = (search as string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 query['$or'] = [
-                        { username: { $regex: search as string, $options: 'i' } },
-                        { email: { $regex: search as string, $options: 'i' } }
+                        { username: { $regex: escapedSearch, $options: 'i' } },
+                        { email: { $regex: escapedSearch, $options: 'i' } }
                 ];
         }
 

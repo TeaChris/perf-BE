@@ -17,11 +17,11 @@ const flashSaleSchema = new mongoose.Schema<IFlashSale, FlashSaleModel>(
                         required: [true, 'Flash sale description is required'],
                         trim: true
                 },
-                products: [
+                assets: [
                         {
-                                productId: {
+                                assetId: {
                                         type: mongoose.Schema.Types.ObjectId,
-                                        ref: 'Product',
+                                        ref: 'Asset',
                                         required: true
                                 },
                                 salePrice: {

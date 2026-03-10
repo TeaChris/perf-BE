@@ -37,20 +37,12 @@ const userSchema = new mongoose.Schema<IUser, UserModel, UserMethods>(
                 },
                 lastLogin: {
                         type: Date,
-                        default: Date.now
+                        default: null
                 },
                 role: {
                         type: String,
                         default: Role.USER,
                         enum: Object.values(Role)
-                },
-                createdAt: {
-                        type: Date,
-                        default: Date.now
-                },
-                updatedAt: {
-                        type: Date,
-                        default: Date.now
                 },
                 ipAddress: {
                         type: String,
@@ -79,6 +71,22 @@ const userSchema = new mongoose.Schema<IUser, UserModel, UserMethods>(
                         type: String,
                         select: false
                 },
+                // Expiry for the email verification token (24 hours from registration)
+                verificationTokenExpiresAt: {
+                        type: Date,
+                        select: false,
+                        default: null
+                },
+                passwordResetToken: {
+                        type: String,
+                        select: false,
+                        default: null
+                },
+                passwordResetExpires: {
+                        type: Date,
+                        select: false,
+                        default: null
+                },
                 isTermsAndConditionAccepted: {
                         type: Boolean,
                         default: false,
@@ -90,6 +98,7 @@ const userSchema = new mongoose.Schema<IUser, UserModel, UserMethods>(
                 }
         },
         {
+                // timestamps:true adds createdAt and updatedAt automatically — do NOT define them manually
                 timestamps: true,
                 versionKey: false
         }
