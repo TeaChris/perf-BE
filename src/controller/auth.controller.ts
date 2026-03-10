@@ -8,7 +8,9 @@ import { redis, ENVIRONMENT } from '../config';
 import { emailService } from '@/services/email.service';
 import AppError from '../common/utils/app.error';
 import { RegisterInput, LoginInput } from '../schema';
-import { fifteenMinutes, setCookie, toJSON, logger } from '../common';
+import { fifteenMinutes, setCookie, toJSON, getModuleLogger } from '../common';
+
+const authLogger = getModuleLogger('auth-controller');
 
 // Verification tokens expire after 24 hours
 const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
@@ -47,6 +49,7 @@ export const signUp = catchAsync(async (req: Request, res: Response) => {
 
         // 4) Send verification email
         await emailService.sendVerificationEmail(email, username, verificationToken);
+        authLogger.info(`New user registered: ${email} (unverified)`);
 
         res.status(201).json({
                 status: 'success',
@@ -102,16 +105,19 @@ export const signIn = catchAsync(async (req: Request, res: Response) => {
         // 1) Check if user exists and include password for verification
         const user = await User.findOne({ email }).select('+password +isSuspended +isVerified +tokenVersion');
         if (!user || !(await user.verifyPassword(password))) {
+                authLogger.warn(`Failed login attempt for: ${email} - Invalid credentials`);
                 throw new AppError('Invalid email or password', 401);
         }
 
         // Check if account is suspended
         if (user.isSuspended) {
+                authLogger.warn(`Failed login attempt for: ${email} - Account suspended`);
                 throw new AppError('Your account is currently suspended', 401);
         }
 
         // Check if account is verified
         if (!user.isVerified) {
+                authLogger.warn(`Failed login attempt for: ${email} - Email not verified`);
                 throw new AppError('Please verify your email to log in', 401);
         }
 
@@ -120,7 +126,7 @@ export const signIn = catchAsync(async (req: Request, res: Response) => {
         const activeJtis = await redis.smembers(userRefreshKey);
 
         if (activeJtis.length > 0) {
-                logger.info(
+                authLogger.info(
                         `Revoking ${activeJtis.length} existing session(s) for user ${user._id} (single-device enforcement)`
                 );
                 const keysToRevoke = activeJtis.map(jti => `refresh:${jti}`);
@@ -154,6 +160,8 @@ export const signIn = catchAsync(async (req: Request, res: Response) => {
         const userToCache = toJSON(user, ['password', '__v']);
         await redis.set(`user:${user._id}`, userToCache, ENVIRONMENT.JWT_EXPIRES_IN.REFRESH_SECONDS);
 
+        authLogger.info(`User logged in: ${email} (${user._id})`);
+
         res.status(200).json({
                 status: 'success',
                 message: 'Logged in successfully',
@@ -183,9 +191,10 @@ export const signOut = catchAsync(async (req: Request, res: Response) => {
                                 // Remove JTI from whitelist and user tracking set
                                 await redis.del(`refresh:${decoded.jti}`);
                                 await redis.srem(`user:${decoded.id}:refresh`, decoded.jti);
+                                authLogger.info(`User logged out: ${decoded.id}`);
                         }
                 } catch (err) {
-                        logger.warn('Sign out: Refresh token verification failed or JTI missing', { err });
+                        authLogger.warn('Sign out: Refresh token verification failed or JTI missing', { err });
                 }
         }
 
@@ -231,11 +240,14 @@ export const forgotPassword = catchAsync(async (req: Request, res: Response) => 
         const user = await User.findOne({ email });
         if (!user) {
                 // High security: don't reveal if user exists. Return success regardless.
+                authLogger.warn(`Password reset requested for non-existent email: ${email}`);
                 return res.status(200).json({
                         status: 'success',
                         message: 'If an account with that email exists, we have sent a password reset link.'
                 });
         }
+
+        authLogger.info(`Password reset requested for: ${email}`);
 
         // 2) Generate reset token
         const resetToken = randomUUID();
@@ -301,6 +313,8 @@ export const resetPassword = catchAsync(async (req: Request, res: Response) => {
                 await Promise.all(keysToRevoke.map(key => redis.del(key)));
                 await redis.del(userRefreshKey);
         }
+
+        authLogger.info(`Password reset successful for user: ${user._id}`);
 
         res.status(200).json({
                 status: 'success',
