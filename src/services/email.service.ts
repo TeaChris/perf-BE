@@ -1,6 +1,8 @@
 import { Resend } from 'resend';
 import { ENVIRONMENT } from '../config';
-import { logger } from '../common';
+import { getModuleLogger } from '../common';
+
+const emailLogger = getModuleLogger('email-service');
 
 class EmailService {
         private resend: Resend;
@@ -50,13 +52,14 @@ class EmailService {
                         });
 
                         if (error) {
-                                logger.error('Failed to send verification email', { error });
+                                emailLogger.error('Failed to send verification email', { error });
                                 return { success: false, error };
                         }
 
+                        emailLogger.info(`Verification email sent to: ${to}`);
                         return { success: true, data };
                 } catch (err) {
-                        logger.error('Email service error', { err });
+                        emailLogger.error('Email service error', { err });
                         return { success: false, error: err };
                 }
         }
@@ -103,13 +106,14 @@ class EmailService {
                         });
 
                         if (error) {
-                                logger.error('Failed to send password reset email', { error });
+                                emailLogger.error('Failed to send password reset email', { error });
                                 return { success: false, error };
                         }
 
+                        emailLogger.info(`Password reset email sent to: ${to}`);
                         return { success: true, data };
                 } catch (err) {
-                        logger.error('Email service reset password error', { err });
+                        emailLogger.error('Email service reset password error', { err });
                         return { success: false, error: err };
                 }
         }
