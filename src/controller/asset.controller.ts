@@ -4,7 +4,9 @@ import { Asset } from '../model';
 import { catchAsync } from '../middleware';
 import AppError from '../common/utils/app.error';
 import { redis } from '../config';
-import { IAsset } from '../common';
+import { IAsset, getModuleLogger } from '../common';
+
+const assetLogger = getModuleLogger('asset-controller');
 
 /**
  * @desc    Get all assets with pagination and filtering
@@ -106,6 +108,8 @@ export const createAsset = catchAsync(async (req: Request, res: Response) => {
         // Clear cache for asset listings
         await redis.del('assets:*');
 
+        assetLogger.info(`Asset created: ${name} (${asset._id}) by ${req.user!._id}`);
+
         res.status(201).json({
                 status: 'success',
                 message: 'Asset created successfully',
@@ -163,6 +167,8 @@ export const updateAsset = catchAsync(async (req: Request, res: Response) => {
         await redis.del('assets:*');
         await redis.del(`asset:${req.params.id}`);
 
+        assetLogger.info(`Asset updated: ${req.params.id} by ${req.user!._id}`);
+
         res.status(200).json({
                 status: 'success',
                 message: 'Asset updated successfully',
@@ -185,6 +191,8 @@ export const deleteAsset = catchAsync(async (req: Request, res: Response) => {
         // Clear cache
         await redis.del('assets:*');
         await redis.del(`asset:${req.params.id}`);
+
+        assetLogger.info(`Asset deleted (soft): ${req.params.id} by ${req.user!._id}`);
 
         res.status(200).json({
                 status: 'success',
