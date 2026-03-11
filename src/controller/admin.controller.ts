@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
-import mongoose from 'mongoose';
 
-import { User, Asset, FlashSale } from '../model';
-import AppError from '../common/utils/app.error';
-import { catchAsync } from '../middleware';
 import { Role, IUser } from '../common';
+import { catchAsync } from '../middleware';
+import AppError from '../common/utils/app.error';
+import { User, Asset, FlashSale } from '../model';
+import * as AnalyticsService from '../services/analytics.service';
 
 /**
  * @desc    Get dashboard statistics
@@ -157,5 +157,27 @@ export const updateUserRole = catchAsync(async (req: Request, res: Response) => 
                 status: 'success',
                 message: `User role updated to ${role}`,
                 data: { user }
+        });
+});
+
+/**
+ * @desc    Get analytics data
+ * @route   GET /api/v1/admin/analytics
+ * @access  Private (Admin only)
+ */
+export const getAnalytics = catchAsync(async (req: Request, res: Response) => {
+        const period = (req.query.period as 'daily' | 'weekly' | 'monthly') || 'daily';
+
+        const [salesStats, revenueByAsset] = await Promise.all([
+                AnalyticsService.getSalesAndRevenueStats(period),
+                AnalyticsService.getRevenueByAsset()
+        ]);
+
+        res.status(200).json({
+                status: 'success',
+                data: {
+                        salesStats,
+                        revenueByAsset
+                }
         });
 });
