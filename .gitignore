@@ -15,11 +15,6 @@ pids/
 *.seed
 *.pid.lock
 
-#lock files
-yarn.lock
-pnpm-lock.yaml
-package-lock.json
-
 # Environment files
 .env
 
@@ -48,7 +43,6 @@ yarn-error.log*
 
 
 .env
-package-lock.json
 
 .DS_Store
 /.DS_Store
