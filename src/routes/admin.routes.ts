@@ -1,7 +1,14 @@
 import { Router } from 'express';
 
 import { protect, adminOnly } from '../middleware';
-import { getDashboardStats, getAllUsers, suspendUser, unsuspendUser, updateUserRole } from '../controller';
+import {
+        getAllUsers,
+        suspendUser,
+        getAnalytics,
+        unsuspendUser,
+        updateUserRole,
+        getDashboardStats
+} from '../controller';
 
 const router = Router();
 
@@ -9,6 +16,7 @@ const router = Router();
 router.use(protect, adminOnly);
 
 router.get('/users', getAllUsers);
+router.get('/analytics', getAnalytics);
 router.patch('/users/:id/suspend', suspendUser);
 router.patch('/users/:id/role', updateUserRole);
 router.get('/dashboard/stats', getDashboardStats);
